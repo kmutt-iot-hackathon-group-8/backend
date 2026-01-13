@@ -158,7 +158,6 @@ app.post("/api/v1/register-user", async (req, res) => {
           INSERT INTO history (uid, eventId) VALUES (${newUid}, ${eventId})
         `;
     }
-    return { uid: newUid };
 
     console.log(
       `Registered & Checked-in: ${firstName} ${lastName} (${cardId})`
