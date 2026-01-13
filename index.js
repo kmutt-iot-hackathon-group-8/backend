@@ -60,15 +60,13 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     if (registration.length === 0) {
       console.log(`Auto-registering ${user.fname} for Event ${eventId}`);
 
-      await sql.begin(async (sql) => {
-        await sql`
+      await sql`
           INSERT INTO attendees (eventId, uid, status)
           VALUES (${eventId}, ${user.uid}, 'present')
         `;
-        await sql`
+      await sql`
           INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
         `;
-      });
 
       io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
       return res.send(`WELCOME_${user.fname.toUpperCase()}`);
@@ -80,15 +78,13 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     }
 
     // SCENARIO 4: Registered but absent -> Mark as Present
-    await sql.begin(async (sql) => {
-      await sql`
+    await sql`
         UPDATE attendees SET status = 'present' 
         WHERE uid = ${user.uid} AND eventId = ${eventId}
       `;
-      await sql`
+    await sql`
         INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
       `;
-    });
 
     console.log(`Success: ${user.fname} checked into Event ${eventId}`);
     io.emit("announcement", `Welcome, ${user.fname}!`);
@@ -136,34 +132,33 @@ app.post("/api/v1/register-user", async (req, res) => {
 
   try {
     // Start transaction to ensure user AND attendee record are created together
-    const result = await sql.begin(async (sql) => {
-      // 1. Check if the Email already exists (Card check handled by Scan endpoint usually, but good for safety)
-      const existing =
-        await sql`SELECT uid FROM users WHERE email = ${email} LIMIT 1`;
-      if (existing.length > 0) throw new Error("EMAIL_EXISTS");
 
-      // 2. Insert new user
-      const userResult = await sql`
+    // 1. Check if the Email already exists (Card check handled by Scan endpoint usually, but good for safety)
+    const existing =
+      await sql`SELECT uid FROM users WHERE email = ${email} LIMIT 1`;
+    if (existing.length > 0) throw new Error("EMAIL_EXISTS");
+
+    // 2. Insert new user
+    const userResult = await sql`
         INSERT INTO users (fname, lname, email, cardid, userpassword)
         VALUES (${firstName}, ${lastName}, ${email}, ${cardId}, ${password})
         RETURNING uid
       `;
 
-      const newUid = userResult[0].uid;
+    const newUid = userResult[0].uid;
 
-      // 3. Immediately register them for the event they scanned for
-      if (eventId) {
-        await sql`
+    // 3. Immediately register them for the event they scanned for
+    if (eventId) {
+      await sql`
           INSERT INTO attendees (eventId, uid, status)
           VALUES (${eventId}, ${newUid}, 'present')
         `;
-        // Log the first-time entry
-        await sql`
+      // Log the first-time entry
+      await sql`
           INSERT INTO history (uid, eventId) VALUES (${newUid}, ${eventId})
         `;
-      }
-      return { uid: newUid };
-    });
+    }
+    return { uid: newUid };
 
     console.log(
       `Registered & Checked-in: ${firstName} ${lastName} (${cardId})`
