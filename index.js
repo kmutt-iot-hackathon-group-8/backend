@@ -3,6 +3,8 @@ const path = require("path");
 const app = express();
 const server = require("http").createServer(app);
 const io = require("socket.io")(server, { cors: { origin: "*" } });
+const cors = require("cors");
+app.use(cors());
 
 const PORT = 3000;
 require("dotenv").config();
