@@ -10,8 +10,8 @@ require("dotenv").config();
 // Determine environment and backend URL
 const isProd = process.env.NODE_ENV === "production";
 const BASE_URL = isProd
-  ? "https://backend-h6j3.onrender.com"
-  : "http://localhost:3000";
+  ? "https://aleshia-unmanipulated-lisabeth.ngrok-free.dev "
+  : "http://localhost:5173";
 
 const { neon } = require("@neondatabase/serverless");
 const sql = neon(process.env.DATABASE_URL);
@@ -53,13 +53,6 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     console.error("DB Error:", err);
     res.status(500).send("SERVER_ERROR");
   }
-});
-
-// --- WEB INTERFACE ENDPOINTS ---
-
-// 2. Serve the registration page
-app.get("/register", (req, res) => {
-  res.sendFile(path.join(__dirname, "register.html"));
 });
 
 // 3. Form Submission
