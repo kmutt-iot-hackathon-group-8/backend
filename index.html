@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  </head>
+  <body>
+    <input id="name" placeholder="Enter your name" />
+    <button id="connectBtn" onclick="connect();">Connect</button>
+    <input id="message" placeholder="Type a message" />
+    <button id="sendBtn" onclick="sendMessage();">Send Message</button>
+    <button id="apiBtn" onclick="sendApi();">Send API</button>
+    <div id="messages"></div>
+  </body>
+  <script>
+    let socket;
+    let myName;
+
+    function connect() {
+      myName = document.getElementById("name").value;
+      if (!myName) return;
+      socket = io("http://localhost:3000");
+      socket.on("connect", () => {
+        console.log("Connected with ID:", socket.id);
+        socket.emit("setName", myName);
+      });
+
+      socket.on("message", (data) => {
+        addMessageToPage(`${data.id}: ${data.message}`);
+      });
+
+      socket.on("announcement", (announcement) => {
+        addMessageToPage(announcement);
+      });
+    }
+
+    function sendMessage() {
+      const message = document.getElementById("message").value;
+      socket.emit("message", message);
+      addMessageToPage(`${myName}: ${message}`);
+    }
+
+    function sendApi() {
+      fetch("/h", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ socketId: socket.id }),
+      });
+    }
+
+    function addMessageToPage(message) {
+      const p = document.createElement("p");
+      p.appendChild(document.createTextNode(message));
+      document.getElementById("messages").appendChild(p);
+    }
+  </script>
+  <style>
+    #messages {
+      display: flex;
+      flex-direction: column;
+    }
+    #messages p {
+      padding: 0;
+      margin: 0 0 1rem 0;
+    }
+  </style>
+</html>
