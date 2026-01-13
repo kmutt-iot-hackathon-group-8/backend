@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Mock Database
 let registeredUsers = [{ cardId: "12:34:16:78", username: "Admin" }];
-const tempCard = "12:34:16:78";
+const tempCard = "12:34:26:78";
 // --- ESP32 ENDPOINTS ---
 
 // 1. ESP32 calls this when a card is tapped
