@@ -30,6 +30,7 @@ const tempCard = "12:34:26:78";
 // 1. ESP32 calls this when a card is tapped
 app.get("/api/v1/scan-card/:cardId", async (req, res) => {
   const { cardId } = req.params;
+  const eventId = req.query.eventId; // maybe should add || "1" for demo purpose
 
   if (!cardId || cardId.length < 4) {
     return res.status(400).send("INVALID_CARD_ID");
@@ -40,17 +41,44 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     const users =
       await sql`SELECT fname, lname FROM users WHERE cardId = ${tempCard}`;
 
-    if (users.length > 0) {
-      user = users[0];
-      console.log(`Attendance: ${user.fname} ${user.lname}`);
-      io.emit("announcement", `Welcome, ${user.fname}!`);
-      return res.send("STATUS_OK");
-    } else {
-      console.log(`New card detected: ${tempCard}`);
-      // Point to your frontend registration URL
-      const regUrl = `${BASE_URL}/register?cardId=${tempCard}`;
+    if (users.length == 0) {
+      const regUrl = `${BASE_URL}/register?cardId=${tempCard}&eventId=${eventId}`;
       return res.send(regUrl);
     }
+
+    const user = users[0];
+
+    const registration = await sql`
+      SELECT status FROM attendees 
+      WHERE uid = ${user.uid} AND eventId = ${eventId}
+    `;
+
+    if (registration.length === 0) {
+      // User has a card, but isn't on the list for THIS event
+      io.emit("announcement", `Access Denied: ${user.fname} not registered.`);
+      return res.send("NOT_REGISTERED_FOR_EVENT");
+    }
+
+    if (registration[0].status === "present") {
+      return res.send(`ALREADY_IN_${user.fname.toUpperCase()}`);
+    }
+
+    // 3. LOG ATTENDANCE (Atomic Transaction)
+    await sql.begin(async (sql) => {
+      // Mark as present
+      await sql`
+        UPDATE attendees SET status = 'present' 
+        WHERE uid = ${user.uid} AND eventId = ${eventId}
+      `;
+      // Log to history
+      await sql`
+        INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
+      `;
+    });
+
+    console.log(`Success: ${user.fname} checked into Event ${eventId}`);
+    io.emit("announcement", `Welcome, ${user.fname}!`);
+    return res.send(`WELCOME_${user.fname.toUpperCase()}`);
   } catch (err) {
     console.error("DB Error:", err);
     res.status(500).send("SERVER_ERROR");
@@ -58,28 +86,78 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 });
 
 // 3. Form Submission
-app.post("/api/v1/register-user", async (req, res) => {
-  const { fname, lname, email, cardId, userPassword } = req.body;
+// app.post("/api/v1/register-user", async (req, res) => {
+//   const { fname, lname, email, cardId, userPassword } = req.body;
 
-  if (!cardId) return res.status(400).send("Missing Card ID");
+//   if (!cardId) return res.status(400).send("Missing Card ID");
+
+//   try {
+//     // DB INSERT: Save new user
+//     await sql`
+//       INSERT INTO users (fname, lname, email, cardId, userPassword)
+//       VALUES (${fname}, ${lname}, ${email}, ${tempCard}, ${userPassword})
+//       -- ON CONFLICT (cardId) DO NOTHING
+//     `;
+
+//     console.log(`Registered in DB: ${fname} ${lname} (${tempCard})`);
+//     io.emit("registration_success", { name: fname });
+
+//     res.send(
+//       "<h1>Registration Complete!</h1><p>You can close this tab now.</p>"
+//     );
+//   } catch (err) {
+//     console.error("Registration Error:", err);
+//     res.status(500).send("Error saving to database");
+//   }
+// });
+
+app.post("/api/v1/register-user", async (req, res) => {
+  const { firstName, lastName, email, cardId, password, eventId } = req.body;
+
+  if (!cardId || !email) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Missing required fields." });
+  }
 
   try {
-    // DB INSERT: Save new user
-    await sql`
-      INSERT INTO users (fname, lname, email, cardId, userPassword)
-      VALUES (${fname}, ${lname}, ${email}, ${tempCard}, ${userPassword})
-      -- ON CONFLICT (cardId) DO NOTHING
+    // 1. Check if the cardId or Email already exists
+    const existingUser = await sql`
+      SELECT fname, lname FROM users WHERE cardid = ${cardId} OR email = ${email}
+      LIMIT 1
     `;
 
-    console.log(`Registered in DB: ${fname} ${lname} (${tempCard})`);
-    io.emit("registration_success", { name: fname });
+    if (existingUser.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "User already registered with this card or email.",
+        user: { name: existingUser[0].fname }, // Optional: share name of owner
+      });
+    }
 
-    res.send(
-      "<h1>Registration Complete!</h1><p>You can close this tab now.</p>"
-    );
+    // 2. Insert new user
+    const newUser = await sql`
+      INSERT INTO users (fname, lname, email, cardid, userpassword)
+      VALUES (${firstName}, ${lastName}, ${email}, ${cardId}, ${password})
+      RETURNING uid
+    `;
+
+    // if registering in a live event, hypothetically
+    if (eventId) {
+      await sql`
+        INSERT INTO attendees (eventId, uid, status)
+        VALUES (${eventId}, ${newUser[0].uid}, 'registered')
+      `;
+    }
+
+    // 3. Success Response
+    return res.status(201).json({
+      success: true,
+      message: "Registration successful!",
+    });
   } catch (err) {
-    console.error("Registration Error:", err);
-    res.status(500).send("Error saving to database");
+    console.error("DB Error:", err);
+    res.status(500).json({ success: false, message: "Internal server error." });
   }
 });
 
