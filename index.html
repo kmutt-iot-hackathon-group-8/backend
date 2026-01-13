@@ -21,7 +21,7 @@
     function connect() {
       myName = document.getElementById("name").value;
       if (!myName) return;
-      socket = io("http://localhost:3000");
+      socket = io(); // Connects to the same host that served the page
       socket.on("connect", () => {
         console.log("Connected with ID:", socket.id);
         socket.emit("setName", myName);
