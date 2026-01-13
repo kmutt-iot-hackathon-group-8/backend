@@ -37,40 +37,54 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
   }
 
   try {
-    // DB CHECK: Find user by card_id
+    // DB CHECK: Find user by the actual scanned cardId
     const users =
-      await sql`SELECT fname, lname FROM users WHERE cardId = ${tempCard}`;
+      await sql`SELECT uid, fname, lname FROM users WHERE cardId = ${cardId}`;
 
-    if (users.length == 0) {
-      const regUrl = `${BASE_URL}/register?cardId=${tempCard}&eventId=${eventId}`;
-      return res.send(regUrl);
+    // SCENARIO 1: Brand New User (Not in database)
+    if (users.length === 0) {
+      console.log(`New card detected: ${cardId}. Redirecting to register...`);
+      const regUrl = `${BASE_URL}/register?cardId=${cardId}&eventId=${eventId}`;
+      return res.send(regUrl); // ESP32 will turn this into a QR Code
     }
 
     const user = users[0];
 
+    // SCENARIO 2: Known User -> Check Event Attendance
     const registration = await sql`
       SELECT status FROM attendees 
       WHERE uid = ${user.uid} AND eventId = ${eventId}
     `;
 
+    // JIT (Just-In-Time) REGISTRATION: User exists but not registered for THIS event
     if (registration.length === 0) {
-      // User has a card, but isn't on the list for THIS event
-      io.emit("announcement", `Access Denied: ${user.fname} not registered.`);
-      return res.send("NOT_REGISTERED_FOR_EVENT");
+      console.log(`Auto-registering ${user.fname} for Event ${eventId}`);
+
+      await sql.begin(async (sql) => {
+        await sql`
+          INSERT INTO attendees (eventId, uid, status)
+          VALUES (${eventId}, ${user.uid}, 'present')
+        `;
+        await sql`
+          INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
+        `;
+      });
+
+      io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
+      return res.send(`WELCOME_${user.fname.toUpperCase()}`);
     }
 
+    // SCENARIO 3: User already checked in
     if (registration[0].status === "present") {
       return res.send(`ALREADY_IN_${user.fname.toUpperCase()}`);
     }
 
-    // 3. LOG ATTENDANCE (Atomic Transaction)
+    // SCENARIO 4: Registered but absent -> Mark as Present
     await sql.begin(async (sql) => {
-      // Mark as present
       await sql`
         UPDATE attendees SET status = 'present' 
         WHERE uid = ${user.uid} AND eventId = ${eventId}
       `;
-      // Log to history
       await sql`
         INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
       `;
@@ -121,42 +135,53 @@ app.post("/api/v1/register-user", async (req, res) => {
   }
 
   try {
-    // 1. Check if the cardId or Email already exists
-    const existingUser = await sql`
-      SELECT fname, lname FROM users WHERE cardid = ${cardId} OR email = ${email}
-      LIMIT 1
-    `;
+    // Start transaction to ensure user AND attendee record are created together
+    const result = await sql.begin(async (sql) => {
+      // 1. Check if the Email already exists (Card check handled by Scan endpoint usually, but good for safety)
+      const existing =
+        await sql`SELECT uid FROM users WHERE email = ${email} LIMIT 1`;
+      if (existing.length > 0) throw new Error("EMAIL_EXISTS");
 
-    if (existingUser.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: "User already registered with this card or email.",
-        user: { name: existingUser[0].fname }, // Optional: share name of owner
-      });
-    }
-
-    // 2. Insert new user
-    const newUser = await sql`
-      INSERT INTO users (fname, lname, email, cardid, userpassword)
-      VALUES (${firstName}, ${lastName}, ${email}, ${cardId}, ${password})
-      RETURNING uid
-    `;
-
-    // if registering in a live event, hypothetically
-    if (eventId) {
-      await sql`
-        INSERT INTO attendees (eventId, uid, status)
-        VALUES (${eventId}, ${newUser[0].uid}, 'registered')
+      // 2. Insert new user
+      const userResult = await sql`
+        INSERT INTO users (fname, lname, email, cardid, userpassword)
+        VALUES (${firstName}, ${lastName}, ${email}, ${cardId}, ${password})
+        RETURNING uid
       `;
-    }
 
-    // 3. Success Response
+      const newUid = userResult[0].uid;
+
+      // 3. Immediately register them for the event they scanned for
+      if (eventId) {
+        await sql`
+          INSERT INTO attendees (eventId, uid, status)
+          VALUES (${eventId}, ${newUid}, 'present')
+        `;
+        // Log the first-time entry
+        await sql`
+          INSERT INTO history (uid, eventId) VALUES (${newUid}, ${eventId})
+        `;
+      }
+      return { uid: newUid };
+    });
+
+    console.log(
+      `Registered & Checked-in: ${firstName} ${lastName} (${cardId})`
+    );
+    io.emit("registration_success", { name: firstName });
+
     return res.status(201).json({
       success: true,
-      message: "Registration successful!",
+      message: "Registration and Check-in successful!",
     });
   } catch (err) {
     console.error("DB Error:", err);
+    if (err.message === "EMAIL_EXISTS") {
+      return res.status(409).json({
+        success: false,
+        message: "User already registered with this email.",
+      });
+    }
     res.status(500).json({ success: false, message: "Internal server error." });
   }
 });
