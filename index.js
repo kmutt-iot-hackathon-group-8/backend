@@ -10,7 +10,7 @@ require("dotenv").config();
 // Determine environment and backend URL
 const isProd = process.env.NODE_ENV === "production";
 const BASE_URL = isProd
-  ? "https://aleshia-unmanipulated-lisabeth.ngrok-free.dev "
+  ? "https://aleshia-unmanipulated-lisabeth.ngrok-free.dev"
   : "http://localhost:5173";
 
 const { neon } = require("@neondatabase/serverless");
