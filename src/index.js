@@ -43,7 +43,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+  })
 );
 
 // Auth routes
@@ -73,7 +73,7 @@ app.post("/api/v1/register-user", (req, res) => {
 
 // Home page
 app.get("/", (_, res) => {
-  res.sendFile(join(__filename, "index.html"));
+  res.json({ success: true, message: "ok" });
 });
 
 // ===== SOCKET.IO EVENTS =====
