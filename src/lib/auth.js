@@ -56,6 +56,10 @@ export const auth = betterAuth({
   advanced: {
     disableOriginCheck: true,
     crossContext: true,
+    cookie: {
+      secure: true, // Force secure cookies (since Render is HTTPS)
+      sameSite: "none", // Allow cross-site usage (essential for different domains)
+    },
   },
   trustedOrigins: [`${FRONTEND_URL}`],
   baseURL: process.env.BETTER_AUTH_URL,
