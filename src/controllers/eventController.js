@@ -28,9 +28,9 @@ const eventControllers = {
           },
           attendees: {
             select: {
-              uid: true,
+              userId: true,
             },
-            distinct: ["uid"],
+            distinct: ["userId"],
           },
         },
         orderBy: {
@@ -75,9 +75,9 @@ const eventControllers = {
           },
           attendees: {
             select: {
-              uid: true,
+              userId: true,
             },
-            distinct: ["uid"],
+            distinct: ["userId"],
           },
         },
       });

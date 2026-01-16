@@ -4,12 +4,12 @@ const userControllers = {
   // Get user profile
   getProfile: async (req, res) => {
     try {
-      const { uid } = req.params;
+      const { id } = req.params;
 
       const user = await prisma.user.findUnique({
-        where: { uid: parseInt(uid) },
+        where: { id: parseInt(id) },
         select: {
-          uid: true,
+          id: true,
           fname: true,
           lname: true,
           email: true,
@@ -31,18 +31,18 @@ const userControllers = {
   // Update user profile
   updateProfile: async (req, res) => {
     try {
-      const { uid } = req.params;
+      const { id } = req.params;
       const { fname, lname, email } = req.body;
 
       const user = await prisma.user.update({
-        where: { uid: parseInt(uid) },
+        where: { id: parseInt(id) },
         data: {
           fname: fname || undefined,
           lname: lname || undefined,
           email: email || undefined,
         },
         select: {
-          uid: true,
+          id: true,
           fname: true,
           lname: true,
           email: true,
@@ -63,17 +63,17 @@ const userControllers = {
   // Link NFC card to user
   linkCard: async (req, res) => {
     try {
-      const { uid, cardId } = req.body;
+      const { id, cardId } = req.body;
 
-      if (!uid || !cardId) {
-        return res.status(400).json({ error: "Missing uid or cardId" });
+      if (!id || !cardId) {
+        return res.status(400).json({ error: "Missing id or cardId" });
       }
 
       const user = await prisma.user.update({
-        where: { uid: parseInt(uid) },
+        where: { id: parseInt(id) },
         data: { cardId },
         select: {
-          uid: true,
+          id: true,
           fname: true,
           lname: true,
           email: true,

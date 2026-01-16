@@ -13,7 +13,7 @@ const router = Router({ mergeParams: true });
 router.get("/", getByEventId);
 router.post("/register", register);
 router.post("/", add);
-router.put("/:uid/status", updateStatus);
-router.delete("/:uid", remove);
+router.put("/:userId/status", updateStatus);
+router.delete("/:userId", remove);
 
 export default router;

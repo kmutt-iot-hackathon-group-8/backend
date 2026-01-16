@@ -8,6 +8,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
+    generateId: false,
   }),
   emailAndPassword: {
     enabled: true,

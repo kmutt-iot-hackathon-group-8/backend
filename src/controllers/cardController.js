@@ -19,7 +19,7 @@ const cardControllers = {
       // Find user by cardId
       const user = await prisma.user.findUnique({
         where: { cardId },
-        select: { uid: true, fname: true, lname: true },
+        select: { id: true, fname: true, lname: true },
       });
 
       // If card not registered, send registration URL
@@ -38,9 +38,9 @@ const cardControllers = {
       // Check if user is registered for this event
       const registration = await prisma.attendee.findUnique({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: eId,
-            uid: user.uid,
+            userId: user.id,
           },
         },
       });
@@ -50,14 +50,14 @@ const cardControllers = {
         await prisma.attendee.create({
           data: {
             eventId: eId,
-            uid: user.uid,
+            userId: user.id,
             status: "present",
           },
         });
 
         await prisma.history.create({
           data: {
-            uid: user.uid,
+            userId: user.id,
             eventId: eId,
           },
         });
@@ -74,9 +74,9 @@ const cardControllers = {
       // Mark as present
       await prisma.attendee.update({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: eId,
-            uid: user.uid,
+            userId: user.id,
           },
         },
         data: { status: "present" },
@@ -84,7 +84,7 @@ const cardControllers = {
 
       await prisma.history.create({
         data: {
-          uid: user.uid,
+          userId: user.id,
           eventId: eId,
         },
       });
@@ -99,21 +99,21 @@ const cardControllers = {
 
   // Register card to existing OAuth user
   registerCard: async (req, res, io) => {
-    const { cardId, eventId, uid } = req.body;
+    const { cardId, eventId, userId } = req.body;
 
-    if (!cardId || !uid) {
+    if (!cardId || !userId) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields (cardId, uid)",
+        message: "Missing required fields (cardId, userId)",
       });
     }
 
     try {
       // Link card to user
       const user = await prisma.user.update({
-        where: { uid: parseInt(uid) },
+        where: { id: parseInt(userId) },
         data: { cardId },
-        select: { uid: true, fname: true, lname: true, email: true },
+        select: { id: true, fname: true, lname: true, email: true },
       });
 
       // If eventId provided, also register for event
@@ -126,9 +126,9 @@ const cardControllers = {
 
         const existing = await prisma.attendee.findUnique({
           where: {
-            eventId_uid: {
+            eventId_userId: {
               eventId: eId,
-              uid: user.uid,
+              userId: user.id,
             },
           },
         });
@@ -137,14 +137,14 @@ const cardControllers = {
           await prisma.attendee.create({
             data: {
               eventId: eId,
-              uid: user.uid,
+              userId: user.id,
               status: "present",
             },
           });
 
           await prisma.history.create({
             data: {
-              uid: user.uid,
+              userId: user.id,
               eventId: eId,
             },
           });

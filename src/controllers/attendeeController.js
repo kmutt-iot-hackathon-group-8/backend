@@ -36,7 +36,7 @@ const attendeeControllers = {
 
       // Flatten structure to match original response
       const flattenedAttendees = attendees.map((a) => ({
-        uid: a.uid,
+        userId: a.userId,
         status: a.status,
         fname: a.user?.fname,
         lname: a.user?.lname,
@@ -55,17 +55,17 @@ const attendeeControllers = {
   register: async (req, res) => {
     try {
       const { eventId } = req.params;
-      const { uid } = req.body;
+      const { userId } = req.body;
 
-      if (!uid) {
-        return res.status(400).json({ error: "Missing uid" });
+      if (!userId) {
+        return res.status(400).json({ error: "Missing userId" });
       }
 
       const existing = await prisma.attendee.findUnique({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: parseInt(eventId),
-            uid: parseInt(uid),
+            userId: parseInt(userId),
           },
         },
       });
@@ -79,7 +79,7 @@ const attendeeControllers = {
       const newAttendee = await prisma.attendee.create({
         data: {
           eventId: parseInt(eventId),
-          uid: parseInt(uid),
+          userId: parseInt(userId),
           status: "registered",
         },
       });
@@ -95,17 +95,17 @@ const attendeeControllers = {
   add: async (req, res) => {
     try {
       const { eventId } = req.params;
-      const { uid, status = "registered" } = req.body;
+      const { userId, status = "registered" } = req.body;
 
-      if (!uid) {
-        return res.status(400).json({ error: "Missing uid" });
+      if (!userId) {
+        return res.status(400).json({ error: "Missing userId" });
       }
 
       const existing = await prisma.attendee.findUnique({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: parseInt(eventId),
-            uid: parseInt(uid),
+            userId: parseInt(userId),
           },
         },
       });
@@ -119,7 +119,7 @@ const attendeeControllers = {
       const newAttendee = await prisma.attendee.create({
         data: {
           eventId: parseInt(eventId),
-          uid: parseInt(uid),
+          userId: parseInt(userId),
           status,
         },
       });
@@ -134,7 +134,7 @@ const attendeeControllers = {
   // Update attendee status
   updateStatus: async (req, res) => {
     try {
-      const { eventId, uid } = req.params;
+      const { eventId, userId } = req.params;
       const { status } = req.body;
 
       if (!["absent", "present", "registered"].includes(status)) {
@@ -143,9 +143,9 @@ const attendeeControllers = {
 
       const updatedAttendee = await prisma.attendee.update({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: parseInt(eventId),
-            uid: parseInt(uid),
+            userId: parseInt(userId),
           },
         },
         data: { status },
@@ -164,13 +164,13 @@ const attendeeControllers = {
   // Remove attendee
   remove: async (req, res) => {
     try {
-      const { eventId, uid } = req.params;
+      const { eventId, userId } = req.params;
 
       await prisma.attendee.delete({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: parseInt(eventId),
-            uid: parseInt(uid),
+            userId: parseInt(userId),
           },
         },
       });
