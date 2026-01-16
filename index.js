@@ -1,190 +1,99 @@
-const express = require("express");
-const path = require("path");
+import "dotenv/config";
+import express, { json, urlencoded } from "express";
+import { join } from "path";
+import cors from "cors";
+import { betterAuth } from "better-auth";
+import { createServer } from "http";
+import socketIo from "socket.io";
+
+// Controllers
+import cardControllers from "./controllers/cardController";
+// Routes
+import eventRoutes from "./routes/events";
+import attendeeRoutes from "./routes/attendees";
+import userRoutes from "./routes/users";
+
+// ===== APP SETUP =====
 const app = express();
-const server = require("http").createServer(app);
-const io = require("socket.io")(server, { cors: { origin: "*" } });
-const cors = require("cors");
-app.use(cors());
+const server = createServer(app);
+const io = socketIo(server, { cors: { origin: "*" } });
 
-const PORT = 3000;
-require("dotenv").config();
+const PORT = process.env.PORT || 3000;
 
-// Determine environment and backend URL
+// Environment
 const isProd = process.env.NODE_ENV === "production";
-const BASE_URL = isProd
-  ? "https://aleshia-unmanipulated-lisabeth.ngrok-free.dev"
+const FRONTEND_URL = isProd
+  ? process.env.FRONTEND_URL
   : "http://localhost:5173";
 
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
+// ===== MIDDLEWARE =====
+app.use(cors());
+app.use(json());
+app.use(urlencoded({ extended: true }));
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Mock Database
-let registeredUsers = [{ cardId: "12:34:16:78", username: "Admin" }];
-const tempCard = "12:34:26:78";
-// --- ESP32 ENDPOINTS ---
-
-// 1. ESP32 calls this when a card is tapped
-app.get("/api/v1/scan-card/:cardId", async (req, res) => {
-  const { cardId } = req.params;
-  const eventId = req.query.eventId; // maybe should add || "1" for demo purpose
-
-  if (!cardId || cardId.length < 4) {
-    return res.status(400).send("INVALID_CARD_ID");
-  }
-
-  try {
-    // DB CHECK: Find user by the actual scanned cardId
-    const users =
-      await sql`SELECT uid, fname, lname FROM users WHERE cardId = ${cardId}`;
-
-    // SCENARIO 1: Brand New User (Not in database)
-    if (users.length === 0) {
-      console.log(`New card detected: ${cardId}. Redirecting to register...`);
-      const regUrl = `${BASE_URL}/register?cardId=${cardId}&eventId=${eventId}`;
-      return res.send(regUrl); // ESP32 will turn this into a QR Code
-    }
-
-    const user = users[0];
-
-    // SCENARIO 2: Known User -> Check Event Attendance
-    const registration = await sql`
-      SELECT status FROM attendees 
-      WHERE uid = ${user.uid} AND eventId = ${eventId}
-    `;
-
-    // JIT (Just-In-Time) REGISTRATION: User exists but not registered for THIS event
-    if (registration.length === 0) {
-      console.log(`Auto-registering ${user.fname} for Event ${eventId}`);
-
-      await sql`
-          INSERT INTO attendees (eventId, uid, status)
-          VALUES (${eventId}, ${user.uid}, 'present')
-        `;
-      await sql`
-          INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
-        `;
-
-      io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
-      return res.send(`WELCOME_${user.fname.toUpperCase()}`);
-    }
-
-    // SCENARIO 3: User already checked in
-    if (registration[0].status === "present") {
-      return res.send(`ALREADY_IN_${user.fname.toUpperCase()}`);
-    }
-
-    // SCENARIO 4: Registered but absent -> Mark as Present
-    await sql`
-        UPDATE attendees SET status = 'present' 
-        WHERE uid = ${user.uid} AND eventId = ${eventId}
-      `;
-    await sql`
-        INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
-      `;
-
-    console.log(`Success: ${user.fname} checked into Event ${eventId}`);
-    io.emit("announcement", `Welcome, ${user.fname}!`);
-    return res.send(`WELCOME_${user.fname.toUpperCase()}`);
-  } catch (err) {
-    console.error("DB Error:", err);
-    res.status(500).send("SERVER_ERROR");
-  }
+// ===== BETTER AUTH SETUP =====
+const auth = betterAuth({
+  database: {
+    type: "postgres",
+    url: process.env.DATABASE_URL,
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    },
+    microsoft: {
+      clientId: process.env.MICROSOFT_CLIENT_ID,
+      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+    },
+  },
+  emailAndPassword: {
+    enabled: true,
+  },
+  baseURL: `${FRONTEND_URL}/api/auth`,
+  trustedOrigins: [FRONTEND_URL],
 });
 
-// 3. Form Submission
-// app.post("/api/v1/register-user", async (req, res) => {
-//   const { fname, lname, email, cardId, userPassword } = req.body;
+// ===== ROUTES =====
 
-//   if (!cardId) return res.status(400).send("Missing Card ID");
+// Auth routes
+app.use("/api/auth", auth.handler);
 
-//   try {
-//     // DB INSERT: Save new user
-//     await sql`
-//       INSERT INTO users (fname, lname, email, cardId, userPassword)
-//       VALUES (${fname}, ${lname}, ${email}, ${tempCard}, ${userPassword})
-//       -- ON CONFLICT (cardId) DO NOTHING
-//     `;
+// API v1 routes
+app.use("/api/v1/events", eventRoutes);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/attendees", attendeeRoutes);
 
-//     console.log(`Registered in DB: ${fname} ${lname} (${tempCard})`);
-//     io.emit("registration_success", { name: fname });
+// Event attendee subroutes
+app.use("/api/v1/events/:eventId/attendees", attendeeRoutes);
 
-//     res.send(
-//       "<h1>Registration Complete!</h1><p>You can close this tab now.</p>"
-//     );
-//   } catch (err) {
-//     console.error("Registration Error:", err);
-//     res.status(500).send("Error saving to database");
-//   }
-// });
-
-app.post("/api/v1/register-user", async (req, res) => {
-  const { firstName, lastName, email, cardId, password, eventId } = req.body;
-
-  if (!cardId || !email) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields." });
-  }
-
-  try {
-    // Start transaction to ensure user AND attendee record are created together
-
-    // 1. Check if the Email already exists (Card check handled by Scan endpoint usually, but good for safety)
-    const existing =
-      await sql`SELECT uid FROM users WHERE email = ${email} LIMIT 1`;
-    if (existing.length > 0) throw new Error("EMAIL_EXISTS");
-
-    // 2. Insert new user
-    const userResult = await sql`
-        INSERT INTO users (fname, lname, email, cardid, userpassword)
-        VALUES (${firstName}, ${lastName}, ${email}, ${cardId}, ${password})
-        RETURNING uid
-      `;
-
-    const newUid = userResult[0].uid;
-
-    // 3. Immediately register them for the event they scanned for
-    if (eventId) {
-      await sql`
-          INSERT INTO attendees (eventId, uid, status)
-          VALUES (${eventId}, ${newUid}, 'present')
-        `;
-      // Log the first-time entry
-      await sql`
-          INSERT INTO history (uid, eventId) VALUES (${newUid}, ${eventId})
-        `;
-    }
-
-    console.log(
-      `Registered & Checked-in: ${firstName} ${lastName} (${cardId})`
-    );
-    io.emit("registration_success", { name: firstName });
-
-    return res.status(201).json({
-      success: true,
-      message: "Registration and Check-in successful!",
-    });
-  } catch (err) {
-    console.error("DB Error:", err);
-    if (err.message === "EMAIL_EXISTS") {
-      return res.status(409).json({
-        success: false,
-        message: "User already registered with this email.",
-      });
-    }
-    res.status(500).json({ success: false, message: "Internal server error." });
-  }
+// Card scanning
+app.get("/api/v1/scan-card/:cardId", (req, res) => {
+  cardControllers.scanCard(req, res, io);
 });
 
-// Home Page
+// Card registration
+app.post("/api/v1/register-user", (req, res) => {
+  cardControllers.registerCard(req, res, io);
+});
+
+// Home page
 app.get("/", (_, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(join(__dirname, "index.html"));
 });
 
+// ===== SOCKET.IO EVENTS =====
+io.on("connection", (socket) => {
+  console.log("New client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
+// ===== SERVER START =====
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Environment: ${isProd ? "PRODUCTION" : "DEVELOPMENT"}`);
+  console.log(`Frontend URL: ${FRONTEND_URL}`);
 });
