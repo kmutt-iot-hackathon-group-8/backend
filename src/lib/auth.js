@@ -84,12 +84,12 @@ export const auth = betterAuth({
           }
 
           // Ensure fname and lname are never undefined
-          user.fname = user.fname || "";
-          user.lname = user.lname || "";
+          user.fname = user.fname || "def fn";
+          user.lname = user.lname || "def ln";
 
           // Set userPassword field for the User model
           // Better Auth will handle password in Account model, but we need a placeholder
-          user.userPassword = user.userPassword || "";
+          user.userPassword = user.userPassword || "def";
 
           return user;
         },
