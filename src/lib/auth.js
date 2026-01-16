@@ -14,6 +14,7 @@ export const auth = betterAuth({
   },
   advanced: {
     disableOriginCheck: true,
+    crossContext: true,
   },
   trustedOrigins: [`${FRONTEND_URL}`],
   baseURL: process.env.BETTER_AUTH_URL,
