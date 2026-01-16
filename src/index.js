@@ -17,7 +17,7 @@ import cardControllers from "./controllers/cardController.js";
 import eventRoutes from "./routes/events.js";
 import attendeeRoutes from "./routes/attendees.js";
 import userRoutes from "./routes/users.js";
-import { auth } from "./lib/auth.ts";
+import { auth } from "./lib/auth.js";
 
 // ===== APP SETUP =====
 const app = express();
