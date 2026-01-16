@@ -13,7 +13,7 @@ const eventControllers = {
       }
 
       if (ownerId) {
-        where.eventOwner = parseInt(ownerId);
+        where.eventOwner = ownerId;
       }
 
       const events = await prisma.event.findMany({

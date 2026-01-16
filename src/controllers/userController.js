@@ -7,7 +7,7 @@ const userControllers = {
       const { id } = req.params;
 
       const user = await prisma.user.findUnique({
-        where: { id: parseInt(id) },
+        where: { id: id },
         select: {
           id: true,
           fname: true,
@@ -35,7 +35,7 @@ const userControllers = {
       const { fname, lname, email } = req.body;
 
       const user = await prisma.user.update({
-        where: { id: parseInt(id) },
+        where: { id: id },
         data: {
           fname: fname || undefined,
           lname: lname || undefined,
@@ -70,7 +70,7 @@ const userControllers = {
       }
 
       const user = await prisma.user.update({
-        where: { id: parseInt(id) },
+        where: { id: id },
         data: { cardId },
         select: {
           id: true,

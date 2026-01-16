@@ -111,7 +111,7 @@ const cardControllers = {
     try {
       // Link card to user
       const user = await prisma.user.update({
-        where: { id: parseInt(userId) },
+        where: { id: userId },
         data: { cardId },
         select: { id: true, fname: true, lname: true, email: true },
       });

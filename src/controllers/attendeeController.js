@@ -65,7 +65,7 @@ const attendeeControllers = {
         where: {
           eventId_userId: {
             eventId: parseInt(eventId),
-            userId: parseInt(userId),
+            userId: userId,
           },
         },
       });
@@ -79,7 +79,7 @@ const attendeeControllers = {
       const newAttendee = await prisma.attendee.create({
         data: {
           eventId: parseInt(eventId),
-          userId: parseInt(userId),
+          userId: userId,
           status: "registered",
         },
       });
@@ -105,7 +105,7 @@ const attendeeControllers = {
         where: {
           eventId_userId: {
             eventId: parseInt(eventId),
-            userId: parseInt(userId),
+            userId: userId,
           },
         },
       });
@@ -119,7 +119,7 @@ const attendeeControllers = {
       const newAttendee = await prisma.attendee.create({
         data: {
           eventId: parseInt(eventId),
-          userId: parseInt(userId),
+          userId: userId,
           status,
         },
       });
@@ -145,7 +145,7 @@ const attendeeControllers = {
         where: {
           eventId_userId: {
             eventId: parseInt(eventId),
-            userId: parseInt(userId),
+            userId: userId,
           },
         },
         data: { status },
@@ -170,7 +170,7 @@ const attendeeControllers = {
         where: {
           eventId_userId: {
             eventId: parseInt(eventId),
-            userId: parseInt(userId),
+            userId: userId,
           },
         },
       });
