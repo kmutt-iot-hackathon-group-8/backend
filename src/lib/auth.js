@@ -1,14 +1,62 @@
 import "dotenv/config";
 import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./db.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 export const auth = betterAuth({
-  database: prismaAdapter(prisma, {
-    provider: "postgresql",
-  }),
+  database: {
+    type: "prisma",
+    db: prisma,
+    user: {
+      modelName: "User",
+      id: { generateId: false },
+      fields: {
+        id: "uid",
+        password: "userPassword",
+        name: "name",
+        email: "email",
+        emailVerified: "emailVerified",
+        image: "image",
+        createdAt: "createdAt",
+        updatedAt: "updatedAt",
+      },
+    },
+    session: {
+      modelName: "Session",
+      fields: {
+        id: "id",
+        userId: "userId",
+        expiresAt: "expiresAt",
+        token: "token",
+      },
+    },
+    account: {
+      modelName: "Account",
+      fields: {
+        id: "id",
+        userId: "userId",
+        accountId: "accountId",
+        providerId: "providerId",
+        accessToken: "accessToken",
+        refreshToken: "refreshToken",
+        accessTokenExpiresAt: "accessTokenExpiresAt",
+        refreshTokenExpiresAt: "refreshTokenExpiresAt",
+        scope: "scope",
+        idToken: "idToken",
+        password: "password",
+      },
+    },
+    verification: {
+      modelName: "Verification",
+      fields: {
+        id: "id",
+        identifier: "identifier",
+        value: "value",
+        expiresAt: "expiresAt",
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 3,
