@@ -98,6 +98,11 @@ export const auth = betterAuth({
           // Better Auth will handle password in Account model, but we need a placeholder
           user.userPassword = user.userPassword || "def";
 
+          // Remove id field since database auto-increments uid
+          if (user.id) {
+            delete user.id;
+          }
+
           return user;
         },
       },
