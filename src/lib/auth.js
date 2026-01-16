@@ -5,11 +5,67 @@ import { prisma } from "./db.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
+const adapter = prismaAdapter(prisma, {
+  provider: "postgresql",
+  generateId: false,
+});
+
+// Monkey patch the adapter to handle ID conversion
+const originalCreateUser = adapter.createUser;
+adapter.createUser = async (user) => {
+  // Remove the ID field so Prisma can auto-generate the integer ID
+  const { id, ...userWithoutId } = user;
+  const createdUser = await originalCreateUser(userWithoutId);
+  // Convert the integer ID back to string for Better Auth
+  return {
+    ...createdUser,
+    id: createdUser.id.toString(),
+  };
+};
+
+const originalGetUser = adapter.getUser;
+adapter.getUser = async (id) => {
+  // Convert string ID to integer for database query
+  const user = await originalGetUser(parseInt(id));
+  if (user) {
+    // Convert integer ID back to string for Better Auth
+    return {
+      ...user,
+      id: user.id.toString(),
+    };
+  }
+  return user;
+};
+
+const originalGetUserByEmail = adapter.getUserByEmail;
+adapter.getUserByEmail = async (email) => {
+  const user = await originalGetUserByEmail(email);
+  if (user) {
+    // Convert integer ID back to string for Better Auth
+    return {
+      ...user,
+      id: user.id.toString(),
+    };
+  }
+  return user;
+};
+
+const originalUpdateUser = adapter.updateUser;
+adapter.updateUser = async (id, updates) => {
+  // Convert string ID to integer for database query
+  const user = await originalUpdateUser(parseInt(id), updates);
+  if (user) {
+    // Convert integer ID back to string for Better Auth
+    return {
+      ...user,
+      id: user.id.toString(),
+    };
+  }
+  return user;
+};
+
 export const auth = betterAuth({
-  database: prismaAdapter(prisma, {
-    provider: "postgresql",
-    generateId: false,
-  }),
+  database: adapter,
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 3,
