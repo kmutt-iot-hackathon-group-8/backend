@@ -12,7 +12,7 @@ require("dotenv").config();
 // Determine environment and backend URL
 const isProd = process.env.NODE_ENV === "production";
 const BASE_URL = isProd
-  ? "https://aleshia-unmanipulated-lisabeth.ngrok-free.dev"
+  ? "https://iot2026.adorio.space"
   : "http://localhost:5173";
 
 const { neon } = require("@neondatabase/serverless");
@@ -158,6 +158,7 @@ app.post("/api/v1/register-user", async (req, res) => {
           INSERT INTO history (uid, eventId) VALUES (${newUid}, ${eventId})
         `;
     }
+    // return { uid: newUid };
 
     console.log(
       `Registered & Checked-in: ${firstName} ${lastName} (${cardId})`
