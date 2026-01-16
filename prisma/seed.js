@@ -25,7 +25,7 @@ async function seed() {
       },
     });
 
-    console.log(`✅ Admin user ready (ID: ${admin.uid})`);
+    console.log(`✅ Admin user ready (ID: ${admin.id})`);
 
     // 2. Create Mock Events
     const eventsToCreate = [
@@ -58,13 +58,13 @@ async function seed() {
       // I will Create only if not found by name in eventDetail to match previous logic style.
 
       const existing = await prisma.event.findFirst({
-        where: { eventDetail: event.name, eventOwner: admin.uid },
+        where: { eventDetail: event.name, eventOwner: admin.id },
       });
 
       if (!existing) {
         await prisma.event.create({
           data: {
-            eventOwner: admin.uid,
+            eventOwner: admin.id,
             eventDetail: event.name,
             eventIMG: "https://via.placeholder.com/150",
             eventStartDate: event.startDate,
@@ -114,9 +114,9 @@ async function seed() {
       // Upsert attendee
       const attendee = await prisma.attendee.findUnique({
         where: {
-          eventId_uid: {
+          eventId_userId: {
             eventId: eventId,
-            uid: testUser.uid,
+            userId: testUser.id,
           },
         },
       });
@@ -125,12 +125,12 @@ async function seed() {
         await prisma.attendee.create({
           data: {
             eventId: eventId,
-            uid: testUser.uid,
+            userId: testUser.id,
             status: "REGISTERED",
           },
         });
         console.log(
-          `✅ Pre-registered John Doe (Card: 12:34:56:78) for Event ID: ${eventId}`,
+          `✅ Pre-registered John Doe (Card: 12:34:56:78) for Event ID: ${eventId}`
         );
       }
     }
