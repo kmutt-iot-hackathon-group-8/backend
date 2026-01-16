@@ -1,4 +1,4 @@
-import { sql } from "../db";
+import { sql } from "../db.js";
 
 const eventControllers = {
   // Get all events with optional filtering
@@ -182,3 +182,4 @@ const eventControllers = {
 };
 
 export default eventControllers;
+export const { getAll, getById, create, update, remove } = eventControllers;

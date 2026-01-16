@@ -1,4 +1,4 @@
-import { sql } from "../db";
+import { sql } from "../db.js";
 
 const attendeeControllers = {
   // Get attendees for event
@@ -146,3 +146,5 @@ const attendeeControllers = {
 };
 
 export default attendeeControllers;
+export const { getByEventId, register, add, updateStatus, remove } =
+  attendeeControllers;

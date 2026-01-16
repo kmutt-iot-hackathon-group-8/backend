@@ -1,4 +1,4 @@
-import { sql } from "../db";
+import { sql } from "../db.js";
 
 const userControllers = {
   // Get user profile
@@ -76,3 +76,4 @@ const userControllers = {
 };
 
 export default userControllers;
+export const { getProfile, updateProfile, linkCard } = userControllers;

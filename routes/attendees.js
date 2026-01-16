@@ -5,7 +5,7 @@ import {
   add,
   updateStatus,
   remove,
-} from "../controllers/attendeeController";
+} from "../controllers/attendeeController.js";
 
 const router = Router({ mergeParams: true });
 

@@ -3,7 +3,7 @@ import {
   getProfile,
   updateProfile,
   linkCard,
-} from "../controllers/userController";
+} from "../controllers/userController.js";
 
 const router = Router();
 

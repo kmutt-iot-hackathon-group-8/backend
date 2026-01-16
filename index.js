@@ -1,22 +1,28 @@
 import "dotenv/config";
 import express, { json, urlencoded } from "express";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import cors from "cors";
 import { betterAuth } from "better-auth";
 import { createServer } from "http";
-import socketIo from "socket.io";
+import { Server } from "socket.io";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Controllers
-import cardControllers from "./controllers/cardController";
+import cardControllers from "./controllers/cardController.js";
+
 // Routes
-import eventRoutes from "./routes/events";
-import attendeeRoutes from "./routes/attendees";
-import userRoutes from "./routes/users";
+import eventRoutes from "./routes/events.js";
+import attendeeRoutes from "./routes/attendees.js";
+import userRoutes from "./routes/users.js";
+import { Pool } from "pg";
 
 // ===== APP SETUP =====
 const app = express();
 const server = createServer(app);
-const io = socketIo(server, { cors: { origin: "*" } });
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3000;
 
@@ -33,10 +39,10 @@ app.use(urlencoded({ extended: true }));
 
 // ===== BETTER AUTH SETUP =====
 const auth = betterAuth({
-  database: {
+  database: new Pool({
     type: "postgres",
     url: process.env.DATABASE_URL,
-  },
+  }),
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID,

@@ -6,7 +6,7 @@ import {
   create,
   update,
   remove,
-} from "../controllers/eventController";
+} from "../controllers/eventController.js";
 
 // Event routes
 router.get("/", getAll);

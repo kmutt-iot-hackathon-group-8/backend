@@ -1,4 +1,4 @@
-import { sql } from "../db";
+import { sql } from "../db.js";
 
 const FRONTEND_URL =
   process.env.NODE_ENV === "production"
