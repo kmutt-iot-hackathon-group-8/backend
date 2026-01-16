@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { toNodeHandler } from "better-auth/node";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,30 +17,42 @@ import cardControllers from "./controllers/cardController.js";
 import eventRoutes from "./routes/events.js";
 import attendeeRoutes from "./routes/attendees.js";
 import userRoutes from "./routes/users.js";
-import { auth } from "./auth.js";
+import { auth } from "./lib/auth.ts";
 
 // ===== APP SETUP =====
 const app = express();
 const server = createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-
-const PORT = process.env.PORT || 3000;
 
 // Environment
 const isProd = process.env.NODE_ENV === "production";
-const FRONTEND_URL = isProd
-  ? process.env.FRONTEND_URL
-  : "http://localhost:5173";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+
+const io = new Server(server, {
+  cors: {
+    origin: FRONTEND_URL,
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
+});
+
+const PORT = process.env.PORT || 3000;
 
 // ===== MIDDLEWARE =====
-app.use(cors());
+app.use(
+  cors({
+    origin: FRONTEND_URL,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+
+// Auth routes
+app.all("/api/auth/*splat", toNodeHandler(auth));
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
 // ===== ROUTES =====
-
-// Auth routes
-app.use("/api/auth", auth.handler);
 
 // API v1 routes
 app.use("/api/v1/events", eventRoutes);

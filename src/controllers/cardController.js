@@ -1,4 +1,4 @@
-import { prisma } from "../db.js";
+import { prisma } from "../lib/db.js";
 
 const FRONTEND_URL =
   process.env.NODE_ENV === "production"

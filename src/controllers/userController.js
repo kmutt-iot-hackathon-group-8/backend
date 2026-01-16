@@ -1,4 +1,4 @@
-import { prisma } from "../db.js";
+import { prisma } from "../lib/db.js";
 
 const userControllers = {
   // Get user profile
