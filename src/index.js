@@ -8,7 +8,6 @@ import { Server } from "socket.io";
 import { toNodeHandler } from "better-auth/node";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 // Controllers
 import cardControllers from "./controllers/cardController.js";
@@ -74,7 +73,7 @@ app.post("/api/v1/register-user", (req, res) => {
 
 // Home page
 app.get("/", (_, res) => {
-  res.sendFile(join(__dirname, "index.html"));
+  res.sendFile(join(__filename, "index.html"));
 });
 
 // ===== SOCKET.IO EVENTS =====
