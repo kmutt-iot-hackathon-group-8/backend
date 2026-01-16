@@ -1,4 +1,4 @@
-import { sql } from "../db.js";
+import { prisma } from "../db.js";
 
 const FRONTEND_URL =
   process.env.NODE_ENV === "production"
@@ -17,56 +17,77 @@ const cardControllers = {
 
     try {
       // Find user by cardId
-      const users = await sql`
-        SELECT uid, fname, lname FROM users WHERE cardId = ${cardId}
-      `;
+      const user = await prisma.user.findUnique({
+        where: { cardId },
+        select: { uid: true, fname: true, lname: true },
+      });
 
       // If card not registered, send registration URL
-      if (users.length === 0) {
+      if (!user) {
         const regUrl = `${FRONTEND_URL}/register?cardId=${cardId}&eventId=${eventId}`;
         return res.send(regUrl);
       }
-
-      const user = users[0];
 
       // If no event specified, just welcome them
       if (!eventId) {
         return res.send(`WELCOME_${user.fname.toUpperCase()}`);
       }
 
+      const eId = parseInt(eventId);
+
       // Check if user is registered for this event
-      const registration = await sql`
-        SELECT status FROM attendees 
-        WHERE uid = ${user.uid} AND eventId = ${eventId}
-      `;
+      const registration = await prisma.attendee.findUnique({
+        where: {
+          eventId_uid: {
+            eventId: eId,
+            uid: user.uid,
+          },
+        },
+      });
 
       // If not registered, auto-register as present
-      if (registration.length === 0) {
-        await sql`
-          INSERT INTO attendees (eventId, uid, status)
-          VALUES (${eventId}, ${user.uid}, 'present')
-        `;
-        await sql`
-          INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
-        `;
+      if (!registration) {
+        await prisma.attendee.create({
+          data: {
+            eventId: eId,
+            uid: user.uid,
+            status: "present",
+          },
+        });
+
+        await prisma.history.create({
+          data: {
+            uid: user.uid,
+            eventId: eId,
+          },
+        });
 
         io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
         return res.send(`WELCOME_${user.fname.toUpperCase()}`);
       }
 
       // If already present, notify
-      if (registration[0].status === "present") {
+      if (registration.status === "present") {
         return res.send(`ALREADY_IN_${user.fname.toUpperCase()}`);
       }
 
       // Mark as present
-      await sql`
-        UPDATE attendees SET status = 'present' 
-        WHERE uid = ${user.uid} AND eventId = ${eventId}
-      `;
-      await sql`
-        INSERT INTO history (uid, eventId) VALUES (${user.uid}, ${eventId})
-      `;
+      await prisma.attendee.update({
+        where: {
+          eventId_uid: {
+            eventId: eId,
+            uid: user.uid,
+          },
+        },
+        data: { status: "present" },
+      });
+
+      await prisma.history.create({
+        data: {
+          uid: user.uid,
+          eventId: eId,
+        },
+      });
 
       io.emit("announcement", `Welcome, ${user.fname}!`);
       res.send(`WELCOME_${user.fname.toUpperCase()}`);
@@ -89,46 +110,62 @@ const cardControllers = {
 
     try {
       // Link card to user
-      const result = await sql`
-        UPDATE users 
-        SET cardId = ${cardId}
-        WHERE uid = ${uid}
-        RETURNING uid, fname, lname, email
-      `;
+      const user = await prisma.user.update({
+        where: { uid: parseInt(uid) },
+        data: { cardId },
+        select: { uid: true, fname: true, lname: true, email: true },
+      });
 
-      if (result.length === 0) {
+      // If eventId provided, also register for event
+      if (eventId) {
+        const eId = parseInt(eventId);
+
+        // Upsert could be used, or check then insert.
+        // Logic says "if existing.length === 0", so basically create if not exists.
+        // We'll use upsert to be safe or just findUnique then create to match logic exactly.
+
+        const existing = await prisma.attendee.findUnique({
+          where: {
+            eventId_uid: {
+              eventId: eId,
+              uid: user.uid,
+            },
+          },
+        });
+
+        if (!existing) {
+          await prisma.attendee.create({
+            data: {
+              eventId: eId,
+              uid: user.uid,
+              status: "present",
+            },
+          });
+
+          await prisma.history.create({
+            data: {
+              uid: user.uid,
+              eventId: eId,
+            },
+          });
+        }
+      }
+
+      io.emit("card_registered", { name: user.fname });
+
+      res.status(200).json({
+        success: true,
+        message: "Card registered and checked-in successfully!",
+        user: user,
+      });
+    } catch (err) {
+      console.error("Error registering card:", err);
+      if (err.code === "P2025") {
         return res.status(404).json({
           success: false,
           message: "User not found",
         });
       }
-
-      // If eventId provided, also register for event
-      if (eventId) {
-        const existing = await sql`
-          SELECT * FROM attendees WHERE eventId = ${eventId} AND uid = ${uid}
-        `;
-
-        if (existing.length === 0) {
-          await sql`
-            INSERT INTO attendees (eventId, uid, status)
-            VALUES (${eventId}, ${uid}, 'present')
-          `;
-          await sql`
-            INSERT INTO history (uid, eventId) VALUES (${uid}, ${eventId})
-          `;
-        }
-      }
-
-      io.emit("card_registered", { name: result[0].fname });
-
-      res.status(200).json({
-        success: true,
-        message: "Card registered and checked-in successfully!",
-        user: result[0],
-      });
-    } catch (err) {
-      console.error("Error registering card:", err);
       res.status(500).json({
         success: false,
         message: "Internal server error",

@@ -1,35 +1,57 @@
-import { sql } from "../db.js";
+import { prisma } from "../db.js";
 
 const eventControllers = {
   // Get all events with optional filtering
   getAll: async (req, res) => {
     try {
       const { date, ownerId } = req.query;
-      let query = `
-        SELECT e.*, u.fname, u.lname, u.email,
-          COUNT(DISTINCT a.uid) as attendeeCount
-        FROM events e
-        LEFT JOIN users u ON e.eventOwner = u.uid
-        LEFT JOIN attendees a ON e.eventId = a.eventId
-      `;
 
-      const params = [];
+      const where = {};
 
       if (date) {
-        query += ` WHERE e.eventStartDate = $${params.length + 1}`;
-        params.push(date);
+        where.eventStartDate = new Date(date);
       }
 
       if (ownerId) {
-        query += params.length > 0 ? " AND" : " WHERE";
-        query += ` e.eventOwner = $${params.length + 1}`;
-        params.push(ownerId);
+        where.eventOwner = parseInt(ownerId);
       }
 
-      query += ` GROUP BY e.eventId, u.uid ORDER BY e.eventStartDate DESC`;
+      const events = await prisma.event.findMany({
+        where,
+        include: {
+          owner: {
+            select: {
+              fname: true,
+              lname: true,
+              email: true,
+            },
+          },
+          attendees: {
+            select: {
+              uid: true,
+            },
+            distinct: ["uid"],
+          },
+        },
+        orderBy: {
+          eventStartDate: "desc",
+        },
+      });
 
-      const events = await sql(query, params);
-      res.json(events);
+      // Transform to match original output structure if needed
+      // The original query returned `attendeeCount`. Prisma returns an array of attendees.
+      // We can map over the results to add attendeeCount.
+      const eventsWithCount = events.map((event) => ({
+        ...event,
+        attendeeCount: event.attendees.length,
+        fname: event.owner?.fname,
+        lname: event.owner?.lname,
+        email: event.owner?.email,
+        owner: undefined, // remove nested object to flatten if desired, or keep it. Original was flat.
+        attendees: undefined, // remove large array
+      }));
+
+      res.json(eventsWithCount);
     } catch (err) {
       console.error("Error fetching events:", err);
       res.status(500).json({ error: "Failed to fetch events" });
@@ -40,21 +62,41 @@ const eventControllers = {
   getById: async (req, res) => {
     try {
       const { id } = req.params;
-      const event = await sql`
-        SELECT e.*, u.fname, u.lname, u.email,
-          COUNT(DISTINCT a.uid) as attendeeCount
-        FROM events e
-        LEFT JOIN users u ON e.eventOwner = u.uid
-        LEFT JOIN attendees a ON e.eventId = a.eventId
-        WHERE e.eventId = ${id}
-        GROUP BY e.eventId, u.uid
-      `;
 
-      if (event.length === 0) {
+      const event = await prisma.event.findUnique({
+        where: { eventId: parseInt(id) },
+        include: {
+          owner: {
+            select: {
+              fname: true,
+              lname: true,
+              email: true,
+            },
+          },
+          attendees: {
+            select: {
+              uid: true,
+            },
+            distinct: ["uid"],
+          },
+        },
+      });
+
+      if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
 
-      res.json(event[0]);
+      const eventWithCount = {
+        ...event,
+        attendeeCount: event.attendees.length,
+        fname: event.owner?.fname,
+        lname: event.owner?.lname,
+        email: event.owner?.email,
+        owner: undefined,
+        attendees: undefined,
+      };
+
+      res.json(eventWithCount);
     } catch (err) {
       console.error("Error fetching event:", err);
       res.status(500).json({ error: "Failed to fetch event" });
@@ -82,21 +124,24 @@ const eventControllers = {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const result = await sql`
-        INSERT INTO events (
-          eventOwner, eventDetail, eventIMG, eventStartDate, eventEndDate,
-          eventStartTime, eventEndTime, regisStart, regisEnd, contact, regisURL
-        ) VALUES (
-          ${eventOwner}, ${eventDetail || null}, ${eventIMG || null},
-          ${eventStartDate}, ${eventEndDate}, ${eventStartTime || null},
-          ${eventEndTime || null}, ${regisStart || null}, ${regisEnd || null},
-          ${contact || null}, ${regisURL}
-        )
-        RETURNING *
-      `;
+      const newEvent = await prisma.event.create({
+        data: {
+          eventOwner: parseInt(eventOwner),
+          eventDetail: eventDetail || null,
+          eventIMG: eventIMG || null,
+          eventStartDate: new Date(eventStartDate),
+          eventEndDate: new Date(eventEndDate),
+          eventStartTime: eventStartTime || null,
+          eventEndTime: eventEndTime || null,
+          regisStart: regisStart ? new Date(regisStart) : null,
+          regisEnd: regisEnd ? new Date(regisEnd) : null,
+          contact: contact || null,
+          regisURL,
+        },
+      });
 
       // Emit Socket.io event (will be done in middleware)
-      res.status(201).json(result[0]);
+      res.status(201).json(newEvent);
     } catch (err) {
       console.error("Error creating event:", err);
       res.status(500).json({ error: "Failed to create event" });
@@ -109,52 +154,57 @@ const eventControllers = {
       const { id } = req.params;
       const updates = req.body;
 
-      const fields = [];
-      const values = [];
-      let paramCount = 1;
+      // Filter valid fields
+      const validFields = [
+        "eventDetail",
+        "eventIMG",
+        "eventStartDate",
+        "eventEndDate",
+        "eventStartTime",
+        "eventEndTime",
+        "regisStart",
+        "regisEnd",
+        "contact",
+        "regisURL",
+      ];
+
+      const data = {};
+      let hasUpdates = false;
 
       Object.keys(updates).forEach((key) => {
-        if (
-          [
-            "eventDetail",
-            "eventIMG",
-            "eventStartDate",
-            "eventEndDate",
-            "eventStartTime",
-            "eventEndTime",
-            "regisStart",
-            "regisEnd",
-            "contact",
-            "regisURL",
-          ].includes(key)
-        ) {
-          fields.push(`${key} = $${paramCount}`);
-          values.push(updates[key]);
-          paramCount++;
+        if (validFields.includes(key)) {
+          // specific handling for dates
+          if (
+            [
+              "eventStartDate",
+              "eventEndDate",
+              "regisStart",
+              "regisEnd",
+            ].includes(key)
+          ) {
+            data[key] = updates[key] ? new Date(updates[key]) : null;
+          } else {
+            data[key] = updates[key];
+          }
+          hasUpdates = true;
         }
       });
 
-      if (fields.length === 0) {
+      if (!hasUpdates) {
         return res.status(400).json({ error: "No valid fields to update" });
       }
 
-      values.push(id);
+      const updatedEvent = await prisma.event.update({
+        where: { eventId: parseInt(id) },
+        data,
+      });
 
-      const query = `
-        UPDATE events 
-        SET ${fields.join(", ")}
-        WHERE eventId = $${paramCount}
-        RETURNING *
-      `;
-
-      const result = await sql(query, values);
-      if (result.length === 0) {
-        return res.status(404).json({ error: "Event not found" });
-      }
-
-      res.json(result[0]);
+      res.json(updatedEvent);
     } catch (err) {
       console.error("Error updating event:", err);
+      if (err.code === "P2025") {
+        return res.status(404).json({ error: "Event not found" });
+      }
       res.status(500).json({ error: "Failed to update event" });
     }
   },
@@ -164,18 +214,16 @@ const eventControllers = {
     try {
       const { id } = req.params;
 
-      const result = await sql`
-        DELETE FROM events WHERE eventId = ${id}
-        RETURNING *
-      `;
-
-      if (result.length === 0) {
-        return res.status(404).json({ error: "Event not found" });
-      }
+      await prisma.event.delete({
+        where: { eventId: parseInt(id) },
+      });
 
       res.json({ success: true, message: "Event deleted" });
     } catch (err) {
       console.error("Error deleting event:", err);
+      if (err.code === "P2025") {
+        return res.status(404).json({ error: "Event not found" });
+      }
       res.status(500).json({ error: "Failed to delete event" });
     }
   },

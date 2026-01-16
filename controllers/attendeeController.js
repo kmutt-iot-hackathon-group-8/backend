@@ -1,4 +1,4 @@
-import { sql } from "../db.js";
+import { prisma } from "../db.js";
 
 const attendeeControllers = {
   // Get attendees for event
@@ -7,21 +7,44 @@ const attendeeControllers = {
       const { eventId } = req.params;
       const { status } = req.query;
 
-      let query = `
-        SELECT a.uid, a.status, u.fname, u.lname, u.email, u.cardId
-        FROM attendees a
-        JOIN users u ON a.uid = u.uid
-        WHERE a.eventId = ${eventId}
-      `;
+      const where = {
+        eventId: parseInt(eventId),
+      };
 
       if (status) {
-        query += ` AND a.status = '${status}'`;
+        where.status = status;
       }
 
-      query += ` ORDER BY u.fname ASC`;
+      const attendees = await prisma.attendee.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              fname: true,
+              lname: true,
+              email: true,
+              cardId: true,
+            },
+          },
+        },
+        orderBy: {
+          user: {
+            fname: "asc",
+          },
+        },
+      });
 
-      const attendees = await sql(query);
-      res.json(attendees);
+      // Flatten structure to match original response
+      const flattenedAttendees = attendees.map((a) => ({
+        uid: a.uid,
+        status: a.status,
+        fname: a.user?.fname,
+        lname: a.user?.lname,
+        email: a.user?.email,
+        cardId: a.user?.cardId,
+      }));
+
+      res.json(flattenedAttendees);
     } catch (err) {
       console.error("Error fetching attendees:", err);
       res.status(500).json({ error: "Failed to fetch attendees" });
@@ -38,23 +61,30 @@ const attendeeControllers = {
         return res.status(400).json({ error: "Missing uid" });
       }
 
-      const existing = await sql`
-        SELECT * FROM attendees WHERE eventId = ${eventId} AND uid = ${uid}
-      `;
+      const existing = await prisma.attendee.findUnique({
+        where: {
+          eventId_uid: {
+            eventId: parseInt(eventId),
+            uid: parseInt(uid),
+          },
+        },
+      });
 
-      if (existing.length > 0) {
+      if (existing) {
         return res
           .status(409)
           .json({ error: "User already registered for this event" });
       }
 
-      const result = await sql`
-        INSERT INTO attendees (eventId, uid, status)
-        VALUES (${eventId}, ${uid}, 'registered')
-        RETURNING *
-      `;
+      const newAttendee = await prisma.attendee.create({
+        data: {
+          eventId: parseInt(eventId),
+          uid: parseInt(uid),
+          status: "registered",
+        },
+      });
 
-      res.status(201).json(result[0]);
+      res.status(201).json(newAttendee);
     } catch (err) {
       console.error("Error registering for event:", err);
       res.status(500).json({ error: "Failed to register for event" });
@@ -71,23 +101,30 @@ const attendeeControllers = {
         return res.status(400).json({ error: "Missing uid" });
       }
 
-      const existing = await sql`
-        SELECT * FROM attendees WHERE eventId = ${eventId} AND uid = ${uid}
-      `;
+      const existing = await prisma.attendee.findUnique({
+        where: {
+          eventId_uid: {
+            eventId: parseInt(eventId),
+            uid: parseInt(uid),
+          },
+        },
+      });
 
-      if (existing.length > 0) {
+      if (existing) {
         return res
           .status(409)
           .json({ error: "User already an attendee for this event" });
       }
 
-      const result = await sql`
-        INSERT INTO attendees (eventId, uid, status)
-        VALUES (${eventId}, ${uid}, ${status})
-        RETURNING *
-      `;
+      const newAttendee = await prisma.attendee.create({
+        data: {
+          eventId: parseInt(eventId),
+          uid: parseInt(uid),
+          status,
+        },
+      });
 
-      res.status(201).json(result[0]);
+      res.status(201).json(newAttendee);
     } catch (err) {
       console.error("Error adding attendee:", err);
       res.status(500).json({ error: "Failed to add attendee" });
@@ -104,20 +141,22 @@ const attendeeControllers = {
         return res.status(400).json({ error: "Invalid status" });
       }
 
-      const result = await sql`
-        UPDATE attendees 
-        SET status = ${status}
-        WHERE eventId = ${eventId} AND uid = ${uid}
-        RETURNING *
-      `;
+      const updatedAttendee = await prisma.attendee.update({
+        where: {
+          eventId_uid: {
+            eventId: parseInt(eventId),
+            uid: parseInt(uid),
+          },
+        },
+        data: { status },
+      });
 
-      if (result.length === 0) {
-        return res.status(404).json({ error: "Attendee record not found" });
-      }
-
-      res.json(result[0]);
+      res.json(updatedAttendee);
     } catch (err) {
       console.error("Error updating attendee status:", err);
+      if (err.code === "P2025") {
+        return res.status(404).json({ error: "Attendee record not found" });
+      }
       res.status(500).json({ error: "Failed to update attendee status" });
     }
   },
@@ -127,19 +166,21 @@ const attendeeControllers = {
     try {
       const { eventId, uid } = req.params;
 
-      const result = await sql`
-        DELETE FROM attendees 
-        WHERE eventId = ${eventId} AND uid = ${uid}
-        RETURNING *
-      `;
-
-      if (result.length === 0) {
-        return res.status(404).json({ error: "Attendee record not found" });
-      }
+      await prisma.attendee.delete({
+        where: {
+          eventId_uid: {
+            eventId: parseInt(eventId),
+            uid: parseInt(uid),
+          },
+        },
+      });
 
       res.json({ success: true, message: "Attendee removed" });
     } catch (err) {
       console.error("Error removing attendee:", err);
+      if (err.code === "P2025") {
+        return res.status(404).json({ error: "Attendee record not found" });
+      }
       res.status(500).json({ error: "Failed to remove attendee" });
     }
   },

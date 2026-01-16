@@ -1,4 +1,4 @@
-import { sql } from "../db.js";
+import { prisma } from "../db.js";
 
 const userControllers = {
   // Get user profile
@@ -6,15 +6,22 @@ const userControllers = {
     try {
       const { uid } = req.params;
 
-      const user = await sql`
-        SELECT uid, fname, lname, email, cardId FROM users WHERE uid = ${uid}
-      `;
+      const user = await prisma.user.findUnique({
+        where: { uid: parseInt(uid) },
+        select: {
+          uid: true,
+          fname: true,
+          lname: true,
+          email: true,
+          cardId: true,
+        },
+      });
 
-      if (user.length === 0) {
+      if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      res.json(user[0]);
+      res.json(user);
     } catch (err) {
       console.error("Error fetching profile:", err);
       res.status(500).json({ error: "Failed to fetch profile" });
@@ -27,22 +34,28 @@ const userControllers = {
       const { uid } = req.params;
       const { fname, lname, email } = req.body;
 
-      const result = await sql`
-        UPDATE users 
-        SET fname = COALESCE(${fname || null}, fname),
-            lname = COALESCE(${lname || null}, lname),
-            email = COALESCE(${email || null}, email)
-        WHERE uid = ${uid}
-        RETURNING uid, fname, lname, email, cardId
-      `;
+      const user = await prisma.user.update({
+        where: { uid: parseInt(uid) },
+        data: {
+          fname: fname || undefined,
+          lname: lname || undefined,
+          email: email || undefined,
+        },
+        select: {
+          uid: true,
+          fname: true,
+          lname: true,
+          email: true,
+          cardId: true,
+        },
+      });
 
-      if (result.length === 0) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json(result[0]);
+      res.json(user);
     } catch (err) {
       console.error("Error updating profile:", err);
+      if (err.code === "P2025") {
+        return res.status(404).json({ error: "User not found" });
+      }
       res.status(500).json({ error: "Failed to update profile" });
     }
   },
@@ -56,20 +69,24 @@ const userControllers = {
         return res.status(400).json({ error: "Missing uid or cardId" });
       }
 
-      const result = await sql`
-        UPDATE users 
-        SET cardId = ${cardId}
-        WHERE uid = ${uid}
-        RETURNING uid, fname, lname, email, cardId
-      `;
+      const user = await prisma.user.update({
+        where: { uid: parseInt(uid) },
+        data: { cardId },
+        select: {
+          uid: true,
+          fname: true,
+          lname: true,
+          email: true,
+          cardId: true,
+        },
+      });
 
-      if (result.length === 0) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json(result[0]);
+      res.json(user);
     } catch (err) {
       console.error("Error linking card:", err);
+      if (err.code === "P2025") {
+        return res.status(404).json({ error: "User not found" });
+      }
       res.status(500).json({ error: "Failed to link card" });
     }
   },

@@ -3,7 +3,6 @@ import express, { json, urlencoded } from "express";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
-import { betterAuth } from "better-auth";
 import { createServer } from "http";
 import { Server } from "socket.io";
 
@@ -17,7 +16,7 @@ import cardControllers from "./controllers/cardController.js";
 import eventRoutes from "./routes/events.js";
 import attendeeRoutes from "./routes/attendees.js";
 import userRoutes from "./routes/users.js";
-import { Pool } from "pg";
+import { auth } from "./auth.js";
 
 // ===== APP SETUP =====
 const app = express();
@@ -36,29 +35,6 @@ const FRONTEND_URL = isProd
 app.use(cors());
 app.use(json());
 app.use(urlencoded({ extended: true }));
-
-// ===== BETTER AUTH SETUP =====
-const auth = betterAuth({
-  database: new Pool({
-    type: "postgres",
-    url: process.env.DATABASE_URL,
-  }),
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    },
-    microsoft: {
-      clientId: process.env.MICROSOFT_CLIENT_ID,
-      clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
-    },
-  },
-  emailAndPassword: {
-    enabled: true,
-  },
-  baseURL: `${FRONTEND_URL}/api/auth`,
-  trustedOrigins: [FRONTEND_URL],
-});
 
 // ===== ROUTES =====
 
