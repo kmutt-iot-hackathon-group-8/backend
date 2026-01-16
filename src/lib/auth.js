@@ -39,6 +39,7 @@ export const auth = betterAuth({
       },
     },
     modelName: "User",
+    id: { generateId: false },
     fields: {
       id: "uid",
       email: "email",
