@@ -1,62 +1,18 @@
 import "dotenv/config";
 import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./db.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 export const auth = betterAuth({
-  database: {
-    type: "prisma",
-    db: prisma,
-    user: {
-      modelName: "User",
-      id: { generateId: false },
-      fields: {
-        id: "uid",
-        password: "userPassword",
-        name: "name",
-        email: "email",
-        emailVerified: "emailVerified",
-        image: "image",
-        createdAt: "createdAt",
-        updatedAt: "updatedAt",
-      },
+  database: prismaAdapter(prisma, {
+    provider: "postgresql",
+    generateId: () => {
+      // Return undefined to let the database handle autoincrement
+      return undefined;
     },
-    session: {
-      modelName: "Session",
-      fields: {
-        id: "id",
-        userId: "userId",
-        expiresAt: "expiresAt",
-        token: "token",
-      },
-    },
-    account: {
-      modelName: "Account",
-      fields: {
-        id: "id",
-        userId: "userId",
-        accountId: "accountId",
-        providerId: "providerId",
-        accessToken: "accessToken",
-        refreshToken: "refreshToken",
-        accessTokenExpiresAt: "accessTokenExpiresAt",
-        refreshTokenExpiresAt: "refreshTokenExpiresAt",
-        scope: "scope",
-        idToken: "idToken",
-        password: "password",
-      },
-    },
-    verification: {
-      modelName: "Verification",
-      fields: {
-        id: "id",
-        identifier: "identifier",
-        value: "value",
-        expiresAt: "expiresAt",
-      },
-    },
-  },
+  }),
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 3,
@@ -75,6 +31,41 @@ export const auth = betterAuth({
         defaultValue: "",
         input: true,
       },
+    },
+    modelName: "User",
+    fields: {
+      id: "uid",
+      email: "email",
+      emailVerified: "emailVerified",
+      name: "name",
+      createdAt: "createdAt",
+      updatedAt: "updatedAt",
+      image: "image",
+    },
+  },
+  session: {
+    modelName: "Session",
+    fields: {
+      sessionToken: "token",
+      userId: "userId",
+      expiresAt: "expiresAt",
+    },
+  },
+  account: {
+    modelName: "Account",
+    fields: {
+      accountId: "accountId",
+      providerId: "providerId",
+      userId: "userId",
+      accessToken: "accessToken",
+      refreshToken: "refreshToken",
+      idToken: "idToken",
+      expiresAt: "accessTokenExpiresAt",
+      refreshTokenExpiresAt: "refreshTokenExpiresAt",
+      scope: "scope",
+    },
+    accountLinking: {
+      enabled: true,
     },
   },
   hooks: {
@@ -96,7 +87,22 @@ export const auth = betterAuth({
           user.fname = user.fname || "";
           user.lname = user.lname || "";
 
+          // Set userPassword field for the User model
+          // Better Auth will handle password in Account model, but we need a placeholder
+          user.userPassword = user.userPassword || "";
+
           return user;
+        },
+      },
+    },
+    session: {
+      create: {
+        before: async (session) => {
+          // Ensure session has required fields
+          if (!session.token) {
+            session.token = session.sessionToken || session.id;
+          }
+          return session;
         },
       },
     },
