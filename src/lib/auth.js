@@ -11,6 +11,47 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    minPasswordLength: 3,
+  },
+  user: {
+    additionalFields: {
+      fname: {
+        type: "string",
+        required: true,
+        defaultValue: "",
+        input: true,
+      },
+      lname: {
+        type: "string",
+        required: true,
+        defaultValue: "",
+        input: true,
+      },
+    },
+  },
+  hooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          // If fname/lname not provided but name is, split the name
+          if ((!user.fname || !user.lname) && user.name) {
+            const nameParts = user.name.trim().split(/\s+/);
+            if (!user.fname) {
+              user.fname = nameParts[0] || "";
+            }
+            if (!user.lname) {
+              user.lname = nameParts.slice(1).join(" ") || "";
+            }
+          }
+
+          // Ensure fname and lname are never undefined
+          user.fname = user.fname || "";
+          user.lname = user.lname || "";
+
+          return user;
+        },
+      },
+    },
   },
   advanced: {
     disableOriginCheck: true,
