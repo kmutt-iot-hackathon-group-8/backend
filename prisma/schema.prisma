@@ -8,24 +8,22 @@ datasource db {
 }
 
 model User {
-  uid          Int     @id @default(autoincrement())
-  fname        String  @db.VarChar(255)
-  lname        String  @db.VarChar(255)
-  email        String  @unique @db.VarChar(254)
-  cardId       String? @unique @db.VarChar(20)
-  userPassword String  @db.VarChar(255)
-
-  eventsOwned Event[]    @relation("EventOwner")
-  attendances Attendee[]
-  history     History[]
-
+  id            Int       @id @default(autoincrement())
+  fname         String    @db.VarChar(255)
+  lname         String    @db.VarChar(255)
+  email         String    @unique @db.VarChar(254)
+  cardId        String?   @unique @db.VarChar(20)
   name          String
   emailVerified Boolean   @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+
+  eventsOwned Event[]    @relation("EventOwner")
+  attendances Attendee[]
+  history     History[]
+  sessions    Session[]
+  accounts    Account[]
 
   @@map("users")
 }
@@ -33,7 +31,7 @@ model User {
 model Event {
   eventId    Int  @id @default(autoincrement())
   eventOwner Int
-  owner      User @relation("EventOwner", fields: [eventOwner], references: [uid], onDelete: Cascade)
+  owner      User @relation("EventOwner", fields: [eventOwner], references: [id], onDelete: Cascade)
 
   eventDetail String? @db.Text
   eventIMG    String? @db.VarChar(255)
@@ -56,23 +54,23 @@ model Event {
 
 model Attendee {
   eventId Int
-  uid     Int
+  userId  Int @default(1)
   status  STATUS
 
   event Event @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
-  user  User  @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([eventId, uid])
+  @@id([eventId, userId])
   @@map("attendees")
 }
 
 model History {
   historyId  Int      @id @default(autoincrement())
-  uid        Int
+  userId     Int
   eventId    Int
   scanned_at DateTime @default(now()) @db.Timestamp
 
-  user  User  @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
 
   @@map("history")
@@ -92,7 +90,7 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
-  user      User     @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
 
   @@unique([token])
@@ -105,7 +103,7 @@ model Account {
   accountId             String
   providerId            String
   userId                Int
-  user                  User      @relation(fields: [userId], references: [uid], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?

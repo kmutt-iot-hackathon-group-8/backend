@@ -8,7 +8,6 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
-    generateId: false,
   }),
   emailAndPassword: {
     enabled: true,
@@ -28,48 +27,6 @@ export const auth = betterAuth({
         defaultValue: "",
         input: true,
       },
-      userPassword: {
-        type: "string",
-        required: true,
-        defaultValue: "",
-        input: false,
-      },
-    },
-    modelName: "User",
-    id: { generateId: false },
-    fields: {
-      id: "uid",
-      email: "email",
-      emailVerified: "emailVerified",
-      name: "name",
-      createdAt: "createdAt",
-      updatedAt: "updatedAt",
-      image: "image",
-    },
-  },
-  session: {
-    modelName: "Session",
-    fields: {
-      sessionToken: "token",
-      userId: "userId",
-      expiresAt: "expiresAt",
-    },
-  },
-  account: {
-    modelName: "Account",
-    fields: {
-      accountId: "accountId",
-      providerId: "providerId",
-      userId: "userId",
-      accessToken: "accessToken",
-      refreshToken: "refreshToken",
-      idToken: "idToken",
-      expiresAt: "accessTokenExpiresAt",
-      refreshTokenExpiresAt: "refreshTokenExpiresAt",
-      scope: "scope",
-    },
-    accountLinking: {
-      enabled: true,
     },
   },
   hooks: {
@@ -88,30 +45,10 @@ export const auth = betterAuth({
           }
 
           // Ensure fname and lname are never undefined
-          user.fname = user.fname || "def fn";
-          user.lname = user.lname || "def ln";
-
-          // Set userPassword field for the User model
-          // Better Auth will handle password in Account model, but we need a placeholder
-          user.userPassword = user.userPassword || "def";
-
-          // Remove id field since database auto-increments uid
-          if (user.id) {
-            delete user.id;
-          }
+          user.fname = user.fname || "";
+          user.lname = user.lname || "";
 
           return user;
-        },
-      },
-    },
-    session: {
-      create: {
-        before: async (session) => {
-          // Ensure session has required fields
-          if (!session.token) {
-            session.token = session.sessionToken || session.id;
-          }
-          return session;
         },
       },
     },
