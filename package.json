@@ -1,22 +1,33 @@
 {
   "name": "websocketproj",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">= 20.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "pnpm install && node index.js",
-    "dev": "nodemon index.js"
+    "build": "prisma generate",
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "prisma": "^7.2.0",
+    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/client": "^7.2.0",
+    "better-auth": "^1.4.13",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "mqtt": "^5.14.1",
     "nodemon": "^3.1.11",
+    "pg": "^8.17.1",
     "socket.io": "^4.8.1"
-  }
+  },
+  "devDependencies": {}
 }
