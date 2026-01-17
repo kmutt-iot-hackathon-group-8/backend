@@ -195,6 +195,7 @@ app.get("/api/v1/events", async (req, res) => {
     const events = await prisma.event.findMany({
       select: {
         eventid: true,
+        eventtitle: true,
         eventdetail: true,
         eventimg: true,
         eventstartdate: true,
@@ -209,9 +210,19 @@ app.get("/api/v1/events", async (req, res) => {
       orderBy: { eventstartdate: "asc" },
     });
 
+    // Get attendee counts
+    const attendeeCounts = await prisma.attendee.groupBy({
+      by: ["eventId"],
+      _count: { uid: true },
+    });
+    const countMap = new Map(
+      attendeeCounts.map((c) => [c.eventId, c._count.uid]),
+    );
+
     const formattedEvents = events.map((event) => ({
       eventId: event.eventid,
-      title: event.eventdetail,
+      title: event.eventtitle,
+      description: event.eventdetail,
       image: event.eventimg,
       startDate: event.eventstartdate,
       endDate: event.eventenddate,
@@ -223,7 +234,7 @@ app.get("/api/v1/events", async (req, res) => {
       organizer: event.users
         ? `${event.users.fname} ${event.users.lname}`
         : "Unknown Organizer",
-      attendeeCount: 0, // Placeholder since attendees relation not available
+      attendeeCount: countMap.get(event.eventid) || 0,
     }));
 
     res.json(formattedEvents);
@@ -241,6 +252,7 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
       where: { eventid: parseInt(eventId) },
       select: {
         eventid: true,
+        eventtitle: true,
         eventdetail: true,
         eventimg: true,
         eventstartdate: true,
@@ -256,9 +268,16 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
     if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
+
+    // Get attendee count
+    const attendeeCount = await prisma.attendee.count({
+      where: { eventId: parseInt(eventId) },
+    });
+
     const formattedEvent = {
       eventId: event.eventid,
-      title: event.eventdetail,
+      title: event.eventtitle,
+      description: event.eventdetail,
       image: event.eventimg,
       startDate: event.eventstartdate,
       endDate: event.eventenddate,
@@ -270,12 +289,51 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
       organizer: event.users
         ? `${event.users.fname} ${event.users.lname}`
         : "Unknown Organizer",
-      attendeeCount: 0, // Placeholder since attendees relation not available
+      attendeeCount: attendeeCount,
     };
     res.json(formattedEvent);
   } catch (err) {
     console.error("Error fetching event:", err);
     res.status(500).json({ error: "Failed to fetch event" });
+  }
+});
+
+// Register for an event
+app.post("/api/v1/events/:eventId/register", async (req, res) => {
+  const { eventId } = req.params;
+  const { uid } = req.body;
+
+  if (!uid) {
+    return res
+      .status(400)
+      .json({ success: false, message: "User ID required" });
+  }
+
+  try {
+    // Check if already registered
+    const existing = await prisma.attendee.findFirst({
+      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+    });
+
+    if (existing) {
+      return res
+        .status(409)
+        .json({ success: false, message: "Already registered" });
+    }
+
+    // Register with status "registered"
+    await prisma.attendee.create({
+      data: {
+        eventId: parseInt(eventId),
+        uid: parseInt(uid),
+        status: "registered",
+      },
+    });
+
+    res.json({ success: true, message: "Registered successfully" });
+  } catch (err) {
+    console.error("Registration error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
@@ -344,6 +402,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
       where: { eventid: { in: eventIds } },
       select: {
         eventid: true,
+        eventtitle: true,
         eventdetail: true,
         eventimg: true,
         eventstartdate: true,
@@ -363,7 +422,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
         });
         return {
           eventId: event.eventid,
-          title: event.eventdetail,
+          title: event.eventtitle,
           image: event.eventimg,
           startDate: event.eventstartdate.toISOString().split("T")[0],
           endDate: event.eventenddate.toISOString().split("T")[0],
@@ -393,6 +452,7 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
       where: { eventowner: parseInt(uid) },
       select: {
         eventid: true,
+        eventtitle: true,
         eventdetail: true,
         eventimg: true,
         eventstartdate: true,
@@ -407,7 +467,7 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
 
     const formattedEvents = events.map((event) => ({
       eventId: event.eventid,
-      title: event.eventdetail,
+      title: event.eventtitle,
       image: event.eventimg,
       startDate: event.eventstartdate,
       endDate: event.eventenddate,

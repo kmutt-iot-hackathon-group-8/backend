@@ -24,6 +24,7 @@ model User {
 model Event {
   eventid        Int      @id @default(autoincrement())
   eventowner     Int?
+  eventtitle     String?  @db.VarChar(255)
   eventdetail    String?
   eventimg       String?  @db.VarChar(255)
   eventstartdate DateTime @db.Date

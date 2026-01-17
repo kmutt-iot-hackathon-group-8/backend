@@ -43,20 +43,25 @@ async function seed() {
 
     for (const event of eventsToCreate) {
       await sql`
-        INSERT INTO events (eventowner, eventdetail, eventimg, eventstartdate, eventenddate, eventstarttime, eventendtime, regisstart, regisend, contact)
-        VALUES (
-          ${adminId}, 
-          ${event.name},
-          'https://via.placeholder.com/150', 
-          ${event.start.split(" ")[0]}, 
-          ${event.end.split(" ")[0]}, 
-          ${event.start.split(" ")[1]}, 
-          ${event.end.split(" ")[1]}, 
-          ${event.start.split(" ")[0]}, 
-          ${event.end.split(" ")[0]}, 
-          'http://localhost:5173/register'
-        )
-      `;
+    INSERT INTO events (
+      eventowner, eventtitle, eventdetail, eventimg, 
+      eventstartdate, eventenddate, eventstarttime, eventendtime, 
+      regisstart, regisend, contact
+    )
+    VALUES (
+      ${adminId}, 
+      ${event.name},
+      ${`This is a detailed description for ${event.name}`},
+      'https://via.placeholder.com/150', 
+      ${event.start.split(" ")[0]}::date, 
+      ${event.end.split(" ")[0]}::date, 
+      ${event.start.split(" ")[1]}::time, 
+      ${event.end.split(" ")[1]}::time, 
+      ${event.start.split(" ")[0]}::date, 
+      ${event.end.split(" ")[0]}::date, 
+      'http://localhost:5173/register'
+    )
+  `;
     }
 
     console.log("✅ Mock events created successfully!");
