@@ -50,7 +50,7 @@ app.use(
 );
 
 // Auth routes - MUST come before body parsers
-app.all("/api/auth/*", toNodeHandler(auth));
+app.all("/api/auth/*splat", toNodeHandler(auth));
 app.use(json());
 app.use(urlencoded({ extended: true }));
 
