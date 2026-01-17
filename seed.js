@@ -59,7 +59,7 @@ async function seed() {
       ${event.end.split(" ")[1]}::time, 
       ${event.start.split(" ")[0]}::date, 
       ${event.end.split(" ")[0]}::date, 
-      '${process.env.FRONTEND_URL || 'http://localhost:5173'}/register'
+      '${process.env.FRONTEND_URL || "http://localhost:5173"}/register'
     )
   `;
     }

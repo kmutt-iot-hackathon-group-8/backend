@@ -2,11 +2,11 @@ const express = require("express");
 const path = require("path");
 const app = express();
 const server = require("http").createServer(app);
-const io = require("socket.io")(server, { 
-  cors: { 
-    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : "*", 
-    credentials: true 
-  } 
+const io = require("socket.io")(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : "*",
+    credentials: true,
+  },
 });
 const cors = require("cors");
 const multer = require("multer");
@@ -18,7 +18,7 @@ const prisma = new PrismaClient();
 // Configure CORS to allow frontend
 const corsOptions = {
   origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : true, // Allow specific origin in prod, all in dev
-  credentials: true
+  credentials: true,
 };
 app.use(cors(corsOptions));
 
@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 3000;
 require("dotenv").config();
 
 // Determine environment and backend URL
-const BASE_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const BASE_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const { neon } = require("@neondatabase/serverless");
 const sql = neon(process.env.DATABASE_URL);
