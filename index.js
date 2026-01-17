@@ -42,7 +42,7 @@ const tempCard = "12:34:26:78";
 // 1. ESP32 calls this when a card is tapped
 app.get("/api/v1/scan-card/:cardId", async (req, res) => {
   const { cardId } = req.params;
-  const eventId = req.query.eventId; // maybe should add || "1" for demo purpose
+  const eventId = req.query.eventid; // maybe should add || "1" for demo purpose
 
   if (!cardId || cardId.length < 4) {
     return res.status(400).send("INVALID_CARD_ID");
