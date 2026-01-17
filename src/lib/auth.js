@@ -63,6 +63,7 @@ export const auth = betterAuth({
   },
   trustedOrigins: [`${FRONTEND_URL}`],
   baseURL: process.env.BETTER_AUTH_URL || "https://backend-h6j3.onrender.com",
+  defaultRedirectURL: FRONTEND_URL,
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID,
