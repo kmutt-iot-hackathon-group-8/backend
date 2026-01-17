@@ -17,7 +17,7 @@ const prisma = new PrismaClient();
 
 // MQTT setup
 const mqtt = require("mqtt");
-const mqttClient = mqtt.connect("mqtt://test.mosquitto.org");
+const mqttClient = mqtt.connect("mqtt://mqtt.eclipseprojects.io");
 
 mqttClient.on("connect", () => {
   console.log("Connected to MQTT broker");
