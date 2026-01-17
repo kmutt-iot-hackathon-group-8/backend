@@ -2,23 +2,31 @@ const express = require("express");
 const path = require("path");
 const app = express();
 const server = require("http").createServer(app);
-const io = require("socket.io")(server, { cors: { origin: "*" } });
+const io = require("socket.io")(server, { 
+  cors: { 
+    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : "*", 
+    credentials: true 
+  } 
+});
 const cors = require("cors");
 const multer = require("multer");
 const { v2: cloudinary } = require("cloudinary");
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
-app.use(cors());
 
-const PORT = 3000;
+// Configure CORS to allow frontend
+const corsOptions = {
+  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : true, // Allow specific origin in prod, all in dev
+  credentials: true
+};
+app.use(cors(corsOptions));
+
+const PORT = process.env.PORT || 3000;
 require("dotenv").config();
 
 // Determine environment and backend URL
-const isProd = process.env.NODE_ENV === "production";
-const BASE_URL = isProd
-  ? "https://iot2026.adorio.space"
-  : "http://localhost:5173";
+const BASE_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const { neon } = require("@neondatabase/serverless");
 const sql = neon(process.env.DATABASE_URL);
@@ -908,7 +916,7 @@ app.use("/api", cloudinaryRoutes);
 const eventRoutes = require("./src/routes/event.route");
 app.use("/api", eventRoutes);
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
 // Graceful shutdown
