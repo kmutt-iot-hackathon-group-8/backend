@@ -337,6 +337,47 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
   }
 });
 
+// Check-in for an event
+app.post("/api/v1/events/:eventId/checkin", async (req, res) => {
+  const { eventId } = req.params;
+  const { uid } = req.body;
+
+  if (!uid) {
+    return res
+      .status(400)
+      .json({ success: false, message: "User ID required" });
+  }
+
+  try {
+    // Check if registered
+    const existing = await prisma.attendee.findFirst({
+      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+    });
+
+    if (!existing) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Not registered for this event" });
+    }
+
+    // Update status to "present"
+    await prisma.attendee.updateMany({
+      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      data: { status: "present" },
+    });
+
+    // Log the check-in
+    await prisma.history.create({
+      data: { uid: parseInt(uid), eventId: parseInt(eventId) },
+    });
+
+    res.json({ success: true, message: "Checked in successfully" });
+  } catch (err) {
+    console.error("Check-in error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 // Get attendees for an event
 app.get("/api/v1/events/:eventId/attendees", async (req, res) => {
   const { eventId } = req.params;
@@ -383,23 +424,64 @@ app.get("/api/v1/users/:uid", async (req, res) => {
   }
 });
 
-// Get user's attended events
-app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
+// Update user profile
+app.put("/api/v1/users/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const { firstName, lastName, email, password } = req.body;
+
+  try {
+    // Check if email is already taken by another user
+    if (email) {
+      const existing = await prisma.user.findFirst({
+        where: { email, uid: { not: parseInt(uid) } },
+        select: { uid: true },
+      });
+      if (existing) {
+        return res.status(409).json({ success: false, message: "Email already in use" });
+      }
+    }
+
+    const updateData = {};
+    if (firstName) updateData.fname = firstName;
+    if (lastName) updateData.lname = lastName;
+    if (email) updateData.email = email;
+    if (password) updateData.userPassword = password;
+
+    const updatedUser = await prisma.user.update({
+      where: { uid: parseInt(uid) },
+      data: updateData,
+      select: { uid: true, fname: true, lname: true, email: true },
+    });
+
+    res.json({ success: true, user: updatedUser });
+  } catch (err) {
+    console.error("Error updating user:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// Get user's registered events
+app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
   const { uid } = req.params;
   try {
     const eventIds = await prisma.attendee
       .findMany({
-        where: { uid: parseInt(uid), status: "present" },
-        select: { eventId: true },
+        where: {
+          uid: parseInt(uid),
+          status: { in: ["registered", "present"] },
+        },
+        select: { eventId: true, status: true },
       })
-      .then((attendees) => attendees.map((a) => a.eventId));
+      .then((attendees) =>
+        attendees.map((a) => ({ eventId: a.eventId, status: a.status })),
+      );
 
     if (eventIds.length === 0) {
       return res.json([]);
     }
 
     const events = await prisma.event.findMany({
-      where: { eventid: { in: eventIds } },
+      where: { eventid: { in: eventIds.map((e) => e.eventId) } },
       select: {
         eventid: true,
         eventtitle: true,
@@ -415,6 +497,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
 
     const formattedEvents = await Promise.all(
       events.map(async (event) => {
+        const attendeeInfo = eventIds.find((e) => e.eventId === event.eventid);
         const history = await prisma.history.findFirst({
           where: { uid: parseInt(uid), eventId: event.eventid },
           select: { scanned_at: true },
@@ -431,7 +514,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
             .split("T")[1]
             .split(".")[0],
           endTime: event.eventendtime.toISOString().split("T")[1].split(".")[0],
-          status: "present",
+          status: attendeeInfo ? attendeeInfo.status : "registered",
           scanned_at: history ? history.scanned_at : null,
         };
       }),
@@ -439,8 +522,8 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
 
     res.json(formattedEvents);
   } catch (err) {
-    console.error("Error fetching attended events:", err);
-    res.status(500).json({ error: "Failed to fetch attended events" });
+    console.error("Error fetching registered events:", err);
+    res.status(500).json({ error: "Failed to fetch registered events" });
   }
 });
 
