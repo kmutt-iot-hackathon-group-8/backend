@@ -8,5 +8,5 @@ router.post('/event', upload.none(), createEvent);
 router.put('/event/:eventId', upload.none(), updateEvent);
 router.delete('/event/:eventid', upload.none(), deleteEvent);
 router.get('/event/:eventId', upload.none(), getEventById);
-router.get('/event/attended/:userId', upload.none(), getAllUserEvents);
+router.get('/event/created/:userId', upload.none(), getAllUserEvents);
 module.exports = router;
