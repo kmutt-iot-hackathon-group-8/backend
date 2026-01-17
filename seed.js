@@ -25,25 +25,25 @@ async function seed() {
     // 3. Create Mock Events
     const eventsToCreate = [
       {
-        name: "IoT Hackathon 2027",
-        start: "2027-01-13 09:00:00",
-        end: "2027-01-15 18:00:00",
+        name: "IoT Hackathon 2026",
+        start: "2026-02-13 09:00:00",
+        end: "2026-02-15 18:00:00",
       },
       {
         name: "NFC Workshop",
-        start: "2027-02-01 10:00:00",
-        end: "2027-02-01 14:00:00",
+        start: "2026-03-01 10:00:00",
+        end: "2026-03-01 14:00:00",
       },
       {
-        name: "AI Conference 2027",
-        start: "2027-03-10 08:00:00",
-        end: "2027-03-12 17:00:00",
+        name: "AI Conference 2026",
+        start: "2026-04-10 08:00:00",
+        end: "2026-04-12 17:00:00",
       },
     ];
 
     for (const event of eventsToCreate) {
       await sql`
-        INSERT INTO events ("eventOwner", "eventDetail", "eventIMG", "eventStartDate", "eventEndDate", "eventStartTime", "eventEndTime", "regisStart", "regisEnd", "regisURL")
+        INSERT INTO events (eventowner, eventdetail, eventimg, eventstartdate, eventenddate, eventstarttime, eventendtime, regisstart, regisend, contact)
         VALUES (
           ${adminId}, 
           ${event.name},
@@ -79,10 +79,10 @@ async function seed() {
     const userId = testUser[0].uid;
 
     // 5. Register test user for first event as present
-    const firstEvent = await sql`SELECT "eventId" FROM events LIMIT 1`;
+    const firstEvent = await sql`SELECT eventid FROM events LIMIT 1`;
 
     if (firstEvent.length > 0) {
-      const eventId = firstEvent[0].eventId;
+      const eventId = firstEvent[0].eventid;
 
       await sql`
         INSERT INTO attendees ("eventId", "uid", "status")
@@ -99,11 +99,10 @@ async function seed() {
     }
 
     // 6. Register admin for second event
-    const secondEvent =
-      await sql`SELECT "eventId" FROM events LIMIT 1 OFFSET 1`;
+    const secondEvent = await sql`SELECT eventid FROM events LIMIT 1 OFFSET 1`;
 
     if (secondEvent.length > 0) {
-      const eventId = secondEvent[0].eventId;
+      const eventId = secondEvent[0].eventid;
 
       await sql`
         INSERT INTO attendees ("eventId", "uid", "status")
@@ -119,7 +118,7 @@ async function seed() {
 
     // 7. Show the events so you know which IDs to use
     const allEvents =
-      await sql`SELECT "eventId", "eventDetail", "eventStartDate" FROM events`;
+      await sql`SELECT eventid, eventdetail, eventstartdate FROM events`;
     console.table(allEvents);
   } catch (err) {
     console.error("❌ Seeding failed:", err);

@@ -4,6 +4,8 @@ const app = express();
 const server = require("http").createServer(app);
 const io = require("socket.io")(server, { cors: { origin: "*" } });
 const cors = require("cors");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 app.use(cors());
 
 const PORT = 3000;
@@ -14,9 +16,6 @@ const isProd = process.env.NODE_ENV === "production";
 const BASE_URL = isProd
   ? "https://iot2026.adorio.space"
   : "http://localhost:5173";
-
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
 
 // Middleware
 app.use(express.json());
@@ -38,8 +37,10 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 
   try {
     // DB CHECK: Find user by the actual scanned cardId
-    const users =
-      await sql`SELECT "uid", "fname", "lname" FROM users WHERE "cardId" = ${cardId}`;
+    const users = await prisma.user.findMany({
+      where: { cardId },
+      select: { uid: true, fname: true, lname: true },
+    });
 
     // SCENARIO 1: Brand New User (Not in database)
     if (users.length === 0) {
@@ -51,22 +52,21 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     const user = users[0];
 
     // SCENARIO 2: Known User -> Check Event Attendance
-    const registration = await sql`
-      SELECT "status" FROM attendees 
-      WHERE "uid" = ${user.uid} AND "eventId" = ${eventId}
-    `;
+    const registration = await prisma.attendee.findMany({
+      where: { uid: user.uid, eventId: parseInt(eventId) },
+      select: { status: true },
+    });
 
     // JIT (Just-In-Time) REGISTRATION: User exists but not registered for THIS event
     if (registration.length === 0) {
       console.log(`Auto-registering ${user.fname} for Event ${eventId}`);
 
-      await sql`
-          INSERT INTO attendees ("eventId", "uid", "status")
-          VALUES (${eventId}, ${user.uid}, 'present')
-        `;
-      await sql`
-          INSERT INTO history ("uid", "eventId") VALUES (${user.uid}, ${eventId})
-        `;
+      await prisma.attendee.create({
+        data: { eventId: parseInt(eventId), uid: user.uid, status: "present" },
+      });
+      await prisma.history.create({
+        data: { uid: user.uid, eventId: parseInt(eventId) },
+      });
 
       io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
       return res.send(`WELCOME_${user.fname.toUpperCase()}`);
@@ -78,13 +78,13 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     }
 
     // SCENARIO 4: Registered but absent -> Mark as Present
-    await sql`
-        UPDATE attendees SET "status" = 'present' 
-        WHERE "uid" = ${user.uid} AND "eventId" = ${eventId}
-      `;
-    await sql`
-        INSERT INTO history ("uid", "eventId") VALUES (${user.uid}, ${eventId})
-      `;
+    await prisma.attendee.updateMany({
+      where: { uid: user.uid, eventId: parseInt(eventId) },
+      data: { status: "present" },
+    });
+    await prisma.history.create({
+      data: { uid: user.uid, eventId: parseInt(eventId) },
+    });
 
     console.log(`Success: ${user.fname} checked into Event ${eventId}`);
     io.emit("announcement", `Welcome, ${user.fname}!`);
@@ -134,29 +134,35 @@ app.post("/api/v1/register-user", async (req, res) => {
     // Start transaction to ensure user AND attendee record are created together
 
     // 1. Check if the Email already exists (Card check handled by Scan endpoint usually, but good for safety)
-    const existing =
-      await sql`SELECT "uid" FROM users WHERE "email" = ${email} LIMIT 1`;
-    if (existing.length > 0) throw new Error("EMAIL_EXISTS");
+    const existing = await prisma.user.findFirst({
+      where: { email },
+      select: { uid: true },
+    });
+    if (existing) throw new Error("EMAIL_EXISTS");
 
     // 2. Insert new user
-    const userResult = await sql`
-        INSERT INTO users ("fname", "lname", "email", "cardId", "userPassword")
-        VALUES (${firstName}, ${lastName}, ${email}, ${cardId}, ${password})
-        RETURNING "uid"
-      `;
+    const userResult = await prisma.user.create({
+      data: {
+        fname: firstName,
+        lname: lastName,
+        email,
+        cardId,
+        userPassword: password,
+      },
+      select: { uid: true },
+    });
 
-    const newUid = userResult[0].uid;
+    const newUid = userResult.uid;
 
     // 3. Immediately register them for the event they scanned for
     if (eventId) {
-      await sql`
-          INSERT INTO attendees ("eventId", "uid", "status")
-          VALUES (${eventId}, ${newUid}, 'present')
-        `;
+      await prisma.attendee.create({
+        data: { eventId: parseInt(eventId), uid: newUid, status: "present" },
+      });
       // Log the first-time entry
-      await sql`
-          INSERT INTO history ("uid", "eventId") VALUES (${newUid}, ${eventId})
-        `;
+      await prisma.history.create({
+        data: { uid: newUid, eventId: parseInt(eventId) },
+      });
     }
     // return { uid: newUid };
 
@@ -186,28 +192,41 @@ app.post("/api/v1/register-user", async (req, res) => {
 // Get all events
 app.get("/api/v1/events", async (req, res) => {
   try {
-    const events = await sql`
-      SELECT 
-        e."eventId",
-        e."eventDetail" as title,
-        e."eventIMG" as image,
-        e."eventStartDate" as startDate,
-        e."eventEndDate" as endDate,
-        e."eventStartTime" as startTime,
-        e."eventEndTime" as endTime,
-        e."regisStart" as regisStart,
-        e."regisEnd" as regisEnd,
-        e."contact",
-        e."regisURL",
-        u."fname" || ' ' || u."lname" as organizer,
-        COUNT(a."uid") as attendeeCount
-      FROM events e
-      LEFT JOIN users u ON e."eventOwner" = u."uid"
-      LEFT JOIN attendees a ON e."eventId" = a."eventId"
-      GROUP BY e."eventId", u."fname", u."lname"
-      ORDER BY e."eventStartDate" ASC
-    `;
-    res.json(events);
+    const events = await prisma.event.findMany({
+      select: {
+        eventid: true,
+        eventdetail: true,
+        eventimg: true,
+        eventstartdate: true,
+        eventenddate: true,
+        eventstarttime: true,
+        eventendtime: true,
+        regisstart: true,
+        regisend: true,
+        contact: true,
+        users: { select: { fname: true, lname: true } },
+      },
+      orderBy: { eventstartdate: "asc" },
+    });
+
+    const formattedEvents = events.map((event) => ({
+      eventId: event.eventid,
+      title: event.eventdetail,
+      image: event.eventimg,
+      startDate: event.eventstartdate,
+      endDate: event.eventenddate,
+      startTime: event.eventstarttime,
+      endTime: event.eventendtime,
+      regisStart: event.regisstart,
+      regisEnd: event.regisend,
+      contact: event.contact,
+      organizer: event.users
+        ? `${event.users.fname} ${event.users.lname}`
+        : "Unknown Organizer",
+      attendeeCount: 0, // Placeholder since attendees relation not available
+    }));
+
+    res.json(formattedEvents);
   } catch (err) {
     console.error("Error fetching events:", err);
     res.status(500).json({ error: "Failed to fetch events" });
@@ -218,28 +237,42 @@ app.get("/api/v1/events", async (req, res) => {
 app.get("/api/v1/events/:eventId", async (req, res) => {
   const { eventId } = req.params;
   try {
-    const events = await sql`
-      SELECT 
-        e."eventId",
-        e."eventDetail" as title,
-        e."eventIMG" as image,
-        e."eventStartDate" as startDate,
-        e."eventEndDate" as endDate,
-        e."eventStartTime" as startTime,
-        e."eventEndTime" as endTime,
-        e."regisStart" as regisStart,
-        e."regisEnd" as regisEnd,
-        e."contact",
-        e."regisURL",
-        u."fname" || ' ' || u."lname" as organizer
-      FROM events e
-      LEFT JOIN users u ON e."eventOwner" = u."uid"
-      WHERE e."eventId" = ${eventId}
-    `;
-    if (events.length === 0) {
+    const event = await prisma.event.findUnique({
+      where: { eventid: parseInt(eventId) },
+      select: {
+        eventid: true,
+        eventdetail: true,
+        eventimg: true,
+        eventstartdate: true,
+        eventenddate: true,
+        eventstarttime: true,
+        eventendtime: true,
+        regisstart: true,
+        regisend: true,
+        contact: true,
+        users: { select: { fname: true, lname: true } },
+      },
+    });
+    if (!event) {
       return res.status(404).json({ error: "Event not found" });
     }
-    res.json(events[0]);
+    const formattedEvent = {
+      eventId: event.eventid,
+      title: event.eventdetail,
+      image: event.eventimg,
+      startDate: event.eventstartdate,
+      endDate: event.eventenddate,
+      startTime: event.eventstarttime,
+      endTime: event.eventendtime,
+      regisStart: event.regisstart,
+      regisEnd: event.regisend,
+      contact: event.contact,
+      organizer: event.users
+        ? `${event.users.fname} ${event.users.lname}`
+        : "Unknown Organizer",
+      attendeeCount: 0, // Placeholder since attendees relation not available
+    };
+    res.json(formattedEvent);
   } catch (err) {
     console.error("Error fetching event:", err);
     res.status(500).json({ error: "Failed to fetch event" });
@@ -250,21 +283,24 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
 app.get("/api/v1/events/:eventId/attendees", async (req, res) => {
   const { eventId } = req.params;
   try {
-    const attendees = await sql`
-      SELECT 
-        u."uid",
-        u."fname",
-        u."lname",
-        u."email",
-        a."status",
-        h."scanned_at"
-      FROM attendees a
-      JOIN users u ON a."uid" = u."uid"
-      LEFT JOIN history h ON h."uid" = u."uid" AND h."eventId" = a."eventId"
-      WHERE a."eventId" = ${eventId}
-      ORDER BY u."fname", u."lname"
-    `;
-    res.json(attendees);
+    const attendees = await prisma.attendee.findMany({
+      where: { eventId: parseInt(eventId) },
+      include: {
+        user: { select: { uid: true, fname: true, lname: true, email: true } },
+      },
+      orderBy: { user: { fname: "asc" } },
+    });
+
+    const formattedAttendees = attendees.map((attendee) => ({
+      uid: attendee.user.uid,
+      fname: attendee.user.fname,
+      lname: attendee.user.lname,
+      email: attendee.user.email,
+      status: attendee.status,
+      scanned_at: null, // Placeholder since history relation not available
+    }));
+
+    res.json(formattedAttendees);
   } catch (err) {
     console.error("Error fetching attendees:", err);
     res.status(500).json({ error: "Failed to fetch attendees" });
@@ -275,15 +311,14 @@ app.get("/api/v1/events/:eventId/attendees", async (req, res) => {
 app.get("/api/v1/users/:uid", async (req, res) => {
   const { uid } = req.params;
   try {
-    const users = await sql`
-      SELECT "uid", "fname", "lname", "email"
-      FROM users
-      WHERE "uid" = ${uid}
-    `;
-    if (users.length === 0) {
+    const user = await prisma.user.findUnique({
+      where: { uid: parseInt(uid) },
+      select: { uid: true, fname: true, lname: true, email: true },
+    });
+    if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
-    res.json(users[0]);
+    res.json(user);
   } catch (err) {
     console.error("Error fetching user:", err);
     res.status(500).json({ error: "Failed to fetch user" });
@@ -294,24 +329,56 @@ app.get("/api/v1/users/:uid", async (req, res) => {
 app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
   const { uid } = req.params;
   try {
-    const events = await sql`
-      SELECT 
-        e."eventId",
-        e."eventDetail" as title,
-        e."eventIMG" as image,
-        e."eventStartDate" as startDate,
-        e."eventEndDate" as endDate,
-        e."eventStartTime" as startTime,
-        e."eventEndTime" as endTime,
-        a."status",
-        h."scanned_at"
-      FROM attendees a
-      JOIN events e ON a."eventId" = e."eventId"
-      LEFT JOIN history h ON h."uid" = a."uid" AND h."eventId" = a."eventId"
-      WHERE a."uid" = ${uid} AND a."status" = 'present'
-      ORDER BY e."eventStartDate" DESC
-    `;
-    res.json(events);
+    const eventIds = await prisma.attendee
+      .findMany({
+        where: { uid: parseInt(uid), status: "present" },
+        select: { eventId: true },
+      })
+      .then((attendees) => attendees.map((a) => a.eventId));
+
+    if (eventIds.length === 0) {
+      return res.json([]);
+    }
+
+    const events = await prisma.event.findMany({
+      where: { eventid: { in: eventIds } },
+      select: {
+        eventid: true,
+        eventdetail: true,
+        eventimg: true,
+        eventstartdate: true,
+        eventenddate: true,
+        eventstarttime: true,
+        eventendtime: true,
+      },
+      orderBy: { eventstartdate: "desc" },
+    });
+
+    const formattedEvents = await Promise.all(
+      events.map(async (event) => {
+        const history = await prisma.history.findFirst({
+          where: { uid: parseInt(uid), eventId: event.eventid },
+          select: { scanned_at: true },
+          orderBy: { scanned_at: "desc" },
+        });
+        return {
+          eventId: event.eventid,
+          title: event.eventdetail,
+          image: event.eventimg,
+          startDate: event.eventstartdate.toISOString().split("T")[0],
+          endDate: event.eventenddate.toISOString().split("T")[0],
+          startTime: event.eventstarttime
+            .toISOString()
+            .split("T")[1]
+            .split(".")[0],
+          endTime: event.eventendtime.toISOString().split("T")[1].split(".")[0],
+          status: "present",
+          scanned_at: history ? history.scanned_at : null,
+        };
+      }),
+    );
+
+    res.json(formattedEvents);
   } catch (err) {
     console.error("Error fetching attended events:", err);
     res.status(500).json({ error: "Failed to fetch attended events" });
@@ -322,20 +389,35 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
 app.get("/api/v1/users/:uid/created-events", async (req, res) => {
   const { uid } = req.params;
   try {
-    const events = await sql`
-      SELECT 
-        "eventId",
-        "eventDetail" as title,
-        "eventIMG" as image,
-        "eventStartDate" as startDate,
-        "eventEndDate" as endDate,
-        "regisStart",
-        "regisEnd"
-      FROM events
-      WHERE "eventOwner" = ${uid}
-      ORDER BY "eventStartDate" DESC
-    `;
-    res.json(events);
+    const events = await prisma.event.findMany({
+      where: { eventowner: parseInt(uid) },
+      select: {
+        eventid: true,
+        eventdetail: true,
+        eventimg: true,
+        eventstartdate: true,
+        eventenddate: true,
+        eventstarttime: true,
+        eventendtime: true,
+        regisstart: true,
+        regisend: true,
+      },
+      orderBy: { eventstartdate: "desc" },
+    });
+
+    const formattedEvents = events.map((event) => ({
+      eventId: event.eventid,
+      title: event.eventdetail,
+      image: event.eventimg,
+      startDate: event.eventstartdate,
+      endDate: event.eventenddate,
+      startTime: event.eventstarttime,
+      endTime: event.eventendtime,
+      regisStart: event.regisstart,
+      regisEnd: event.regisend,
+    }));
+
+    res.json(formattedEvents);
   } catch (err) {
     console.error("Error fetching created events:", err);
     res.status(500).json({ error: "Failed to fetch created events" });
@@ -346,17 +428,16 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const users = await sql`
-      SELECT "uid", "fname", "lname", "email"
-      FROM users
-      WHERE "email" = ${email} AND "userPassword" = ${password}
-    `;
-    if (users.length === 0) {
+    const user = await prisma.user.findFirst({
+      where: { email, userPassword: password },
+      select: { uid: true, fname: true, lname: true, email: true },
+    });
+    if (!user) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid email or password" });
     }
-    res.json({ success: true, user: users[0] });
+    res.json({ success: true, user });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Server error" });
@@ -367,20 +448,25 @@ app.post("/login", async (req, res) => {
 app.post("/signup", async (req, res) => {
   const { firstName, lastName, email, password } = req.body;
   try {
-    const existing = await sql`
-      SELECT "uid" FROM users WHERE "email" = ${email} LIMIT 1
-    `;
-    if (existing.length > 0) {
+    const existing = await prisma.user.findFirst({
+      where: { email },
+      select: { uid: true },
+    });
+    if (existing) {
       return res
         .status(409)
         .json({ success: false, message: "Email already exists" });
     }
-    const newUser = await sql`
-      INSERT INTO users ("fname", "lname", "email", "userPassword")
-      VALUES (${firstName}, ${lastName}, ${email}, ${password})
-      RETURNING "uid", "fname", "lname", "email"
-    `;
-    res.status(201).json({ success: true, user: newUser[0] });
+    const newUser = await prisma.user.create({
+      data: {
+        fname: firstName,
+        lname: lastName,
+        email,
+        userPassword: password,
+      },
+      select: { uid: true, fname: true, lname: true, email: true },
+    });
+    res.status(201).json({ success: true, user: newUser });
   } catch (err) {
     console.error("Signup error:", err);
     res.status(500).json({ success: false, message: "Server error" });
@@ -394,4 +480,21 @@ app.get("/", (_, res) => {
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM received, shutting down gracefully");
+  await prisma.$disconnect();
+  server.close(() => {
+    console.log("Process terminated");
+  });
+});
+
+process.on("SIGINT", async () => {
+  console.log("SIGINT received, shutting down gracefully");
+  await prisma.$disconnect();
+  server.close(() => {
+    console.log("Process terminated");
+  });
 });
