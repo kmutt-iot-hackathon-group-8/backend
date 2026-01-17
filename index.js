@@ -453,7 +453,9 @@ app.put("/api/v1/users/:uid", async (req, res) => {
         select: { uid: true },
       });
       if (existing) {
-        return res.status(409).json({ success: false, message: "Email already in use" });
+        return res
+          .status(409)
+          .json({ success: false, message: "Email already in use" });
       }
     }
 
@@ -638,11 +640,11 @@ app.get("/", (_, res) => {
 });
 
 // Use cloudinary routes
-const cloudinaryRoutes = require('./src/routes/cloudinary.route');
-app.use('/api', cloudinaryRoutes);
+const cloudinaryRoutes = require("./src/routes/cloudinary.route");
+app.use("/api", cloudinaryRoutes);
 
-const eventRoutes = require('./src/routes/event.route');
-app.use('/api', eventRoutes);
+const eventRoutes = require("./src/routes/event.route");
+app.use("/api", eventRoutes);
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
