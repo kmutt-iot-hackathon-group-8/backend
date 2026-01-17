@@ -1,4 +1,6 @@
 import { prisma } from "../lib/db.js";
+import { getSession } from "better-auth/api";
+import { auth } from "../lib/auth.js";
 
 const attendeeControllers = {
   // Get attendees for event
@@ -55,11 +57,14 @@ const attendeeControllers = {
   register: async (req, res) => {
     try {
       const { eventId } = req.params;
-      const { userId } = req.body;
 
-      if (!userId) {
-        return res.status(400).json({ error: "Missing userId" });
+      // Get session from request
+      const session = await getSession(req, { auth });
+      if (!session) {
+        return res.status(401).json({ error: "Unauthorized" });
       }
+
+      const userId = session.user.id;
 
       const existing = await prisma.attendee.findUnique({
         where: {
@@ -80,7 +85,7 @@ const attendeeControllers = {
         data: {
           eventId: parseInt(eventId),
           userId: userId,
-          status: "registered",
+          status: "REGISTERED",
         },
       });
 

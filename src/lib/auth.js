@@ -62,7 +62,7 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins: [`${FRONTEND_URL}`],
-  baseURL: process.env.BETTER_AUTH_URL,
+  baseURL: process.env.BETTER_AUTH_URL || "https://backend-h6j3.onrender.com",
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID,
