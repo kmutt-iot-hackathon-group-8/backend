@@ -109,15 +109,15 @@ export async function createEvent(req, res) {
 export async function updateEvent(req, res) {
   const { eventId } = req.params;
   const {
-    eventOwner,
-    eventDetail,
-    eventIMG,
-    eventStartDate,
-    eventEndDate,
-    eventStartTime,
-    eventEndTime,
-    regisStart,
-    regisEnd,
+    eventowner,
+    eventdetail,
+    eventimg,
+    eventstartdate,
+    eventenddate,
+    eventstarttime,
+    eventendtime,
+    regisstart,
+    regisend,
     contact,
     eventtitle,
     eventlocation,
@@ -139,10 +139,10 @@ export async function updateEvent(req, res) {
 
     // Build update object with only provided fields (fallback to existing values)
     const updates = {
-      eventOwner: eventOwner !== undefined ? eventOwner : existing.eventowner,
-      eventDetail:
-        eventDetail !== undefined ? eventDetail : existing.eventdetail,
-      eventIMG: eventIMG !== undefined ? eventIMG : existing.eventimg,
+      eventowner: eventowner !== undefined ? eventowner : existing.eventowner,
+      eventdetail:
+        eventdetail !== undefined ? eventdetail : existing.eventdetail,
+      eventimg: eventimg !== undefined ? eventimg : existing.eventimg,
       contact: contact !== undefined ? contact : existing.contact,
       eventtitle: eventtitle !== undefined ? eventtitle : existing.eventtitle,
       eventlocation:
@@ -150,84 +150,100 @@ export async function updateEvent(req, res) {
     };
 
     // Handle date fields with formatting
-    if (eventStartDate) {
-      const startDateObj = new Date(eventStartDate);
+    if (eventstartdate) {
+      const startDateObj = new Date(eventstartdate);
       if (isNaN(startDateObj.getTime())) {
         return res.status(400).json({ error: "Invalid eventStartDate format" });
       }
-      updates.eventStartDate = startDateObj.toISOString().split("T")[0];
+      updates.eventstartdate = startDateObj.toISOString().split("T")[0];
     } else {
-      updates.eventStartDate = existing.eventstartdate;
+      updates.eventstartdate = existing.eventstartdate;
     }
 
-    if (eventEndDate) {
-      const endDateObj = new Date(eventEndDate);
+    if (eventenddate) {
+      const endDateObj = new Date(eventenddate);
       if (isNaN(endDateObj.getTime())) {
         return res.status(400).json({ error: "Invalid eventEndDate format" });
       }
-      updates.eventEndDate = endDateObj.toISOString().split("T")[0];
+      updates.eventenddate = endDateObj.toISOString().split("T")[0];
     } else {
-      updates.eventEndDate = existing.eventenddate;
+      updates.eventenddate = existing.eventenddate;
     }
 
-    if (regisStart) {
-      const regisStartObj = new Date(regisStart);
+    if (regisstart) {
+      const regisStartObj = new Date(regisstart);
       if (isNaN(regisStartObj.getTime())) {
         return res.status(400).json({ error: "Invalid regisStart format" });
       }
-      updates.regisStart = regisStartObj.toISOString().split("T")[0];
+      updates.regisstart = regisStartObj.toISOString().split("T")[0];
     } else {
-      updates.regisStart = existing.regisstart;
+      updates.regisstart = existing.regisstart;
     }
 
-    if (regisEnd) {
-      const regisEndObj = new Date(regisEnd);
+    if (regisend) {
+      const regisEndObj = new Date(regisend);
       if (isNaN(regisEndObj.getTime())) {
         return res.status(400).json({ error: "Invalid regisEnd format" });
       }
-      updates.regisEnd = regisEndObj.toISOString().split("T")[0];
+      updates.regisend = regisEndObj.toISOString().split("T")[0];
     } else {
-      updates.regisEnd = existing.regisend;
+      updates.regisend = existing.regisend;
     }
 
     // Handle time fields with formatting
-    if (eventStartTime) {
-      const startTimeObj = new Date(eventStartTime);
-      if (isNaN(startTimeObj.getTime())) {
+    if (eventstarttime) {
+      let startTimeStr = eventstarttime;
+      // If it's an ISO datetime string, extract the time part
+      if (startTimeStr.includes("T")) {
+        const startTimeObj = new Date(startTimeStr);
+        if (isNaN(startTimeObj.getTime())) {
+          return res
+            .status(400)
+            .json({ error: "Invalid eventStartTime format" });
+        }
+        startTimeStr = startTimeObj.toISOString().split("T")[1].split(".")[0];
+      }
+      // Validate HH:MM:SS format
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+      if (!timeRegex.test(startTimeStr)) {
         return res.status(400).json({ error: "Invalid eventStartTime format" });
       }
-      updates.eventStartTime = startTimeObj
-        .toISOString()
-        .split("T")[1]
-        .split(".")[0];
+      updates.eventstarttime = startTimeStr;
     } else {
-      updates.eventStartTime = existing.eventstarttime;
+      updates.eventstarttime = existing.eventstarttime;
     }
 
-    if (eventEndTime) {
-      const endTimeObj = new Date(eventEndTime);
-      if (isNaN(endTimeObj.getTime())) {
+    if (eventendtime) {
+      let endTimeStr = eventendtime;
+      // If it's an ISO datetime string, extract the time part
+      if (endTimeStr.includes("T")) {
+        const endTimeObj = new Date(endTimeStr);
+        if (isNaN(endTimeObj.getTime())) {
+          return res.status(400).json({ error: "Invalid eventEndTime format" });
+        }
+        endTimeStr = endTimeObj.toISOString().split("T")[1].split(".")[0];
+      }
+      // Validate HH:MM:SS format
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+      if (!timeRegex.test(endTimeStr)) {
         return res.status(400).json({ error: "Invalid eventEndTime format" });
       }
-      updates.eventEndTime = endTimeObj
-        .toISOString()
-        .split("T")[1]
-        .split(".")[0];
+      updates.eventendtime = endTimeStr;
     } else {
-      updates.eventEndTime = existing.eventendtime;
+      updates.eventendtime = existing.eventendtime;
     }
 
     const updatedEvent = await sql`
         UPDATE events 
-        SET "eventowner" = ${updates.eventOwner}, 
-            "eventdetail" = ${updates.eventDetail}, 
-            "eventimg" = ${updates.eventIMG}, 
-            "eventstartdate" = ${updates.eventStartDate}, 
-            "eventenddate" = ${updates.eventEndDate}, 
-            "eventstarttime" = ${updates.eventStartTime}, 
-            "eventendtime" = ${updates.eventEndTime}, 
-            "regisstart" = ${updates.regisStart}, 
-            "regisend" = ${updates.regisEnd}, 
+        SET "eventowner" = ${updates.eventowner}, 
+            "eventdetail" = ${updates.eventdetail}, 
+            "eventimg" = ${updates.eventimg}, 
+            "eventstartdate" = ${updates.eventstartdate}, 
+            "eventenddate" = ${updates.eventenddate}, 
+            "eventstarttime" = ${updates.eventstarttime}, 
+            "eventendtime" = ${updates.eventendtime}, 
+            "regisstart" = ${updates.regisstart}, 
+            "regisend" = ${updates.regisend}, 
             "contact" = ${updates.contact}, 
             "eventtitle" = ${updates.eventtitle}, 
             "eventlocation" = ${updates.eventlocation}
