@@ -252,37 +252,41 @@ app.get("/api/v1/events", async (req, res) => {
     const formattedEvents = events.map((event) => {
       // Determine event status based on current date
       const now = new Date();
-      const eventEndDateTime = new Date(event.eventenddate);
-      eventEndDateTime.setHours(
-        event.eventendtime.getHours(),
-        event.eventendtime.getMinutes(),
-      );
+      
+      // Create event end datetime properly
+      const eventEndDate = new Date(event.eventenddate);
+      // Extract time components from the time field
+      const endTimeStr = event.eventendtime.toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
+      const [endHours, endMinutes, endSeconds] = endTimeStr.split(':').map(Number);
+      
+      // Set the time on the end date
+      eventEndDate.setHours(endHours, endMinutes, endSeconds, 0);
+      
+      // Create event start datetime properly  
+      const eventStartDate = new Date(event.eventstartdate);
+      const startTimeStr = event.eventstarttime.toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
+      const [startHours, startMinutes, startSeconds] = startTimeStr.split(':').map(Number);
+      eventStartDate.setHours(startHours, startMinutes, startSeconds, 0);
 
       let eventStatus = "upcoming";
-      if (now > eventEndDateTime) {
+      if (now > eventEndDate) {
         eventStatus = "ended";
-      } else {
-        const eventStartDateTime = new Date(event.eventstartdate);
-        eventStartDateTime.setHours(
-          event.eventstarttime.getHours(),
-          event.eventstarttime.getMinutes(),
-        );
-        if (now >= eventStartDateTime) {
-          eventStatus = "ongoing";
-        }
+      } else if (now >= eventStartDate) {
+        eventStatus = "ongoing";
       }
 
       return {
+        eventId: event.eventid, // Note: using eventId here for the update logic below
         eventid: event.eventid,
         title: event.eventtitle,
         description: event.eventdetail,
         image: event.eventimg,
-        startDate: event.eventstartdate,
-        endDate: event.eventenddate,
-        startTime: event.eventstarttime,
-        endTime: event.eventendtime,
-        regisStart: event.regisstart,
-        regisEnd: event.regisend,
+        startDate: event.eventstartdate.toISOString().split('T')[0],
+        endDate: event.eventenddate.toISOString().split('T')[0],
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        regisStart: event.regisstart.toISOString().split('T')[0],
+        regisEnd: event.regisend.toISOString().split('T')[0],
         contact: event.contact,
         location: event.eventlocation || "Location TBD",
         attendeeCount: countMap.get(event.eventid) || 0,
@@ -290,19 +294,8 @@ app.get("/api/v1/events", async (req, res) => {
       };
     });
 
-    // Update attendee statuses for ended events
-    const endedEvents = formattedEvents.filter((e) => e.status === "ended");
-    for (const event of endedEvents) {
-      await prisma.attendee.updateMany({
-        where: {
-          eventid: event.eventId,
-          status: "registered",
-        },
-        data: {
-          status: "absent",
-        },
-      });
-    }
+    // Note: Removed automatic marking of registered users as absent
+    // This should be handled by a proper end-of-event process, not on every fetch
 
     res.json(formattedEvents);
   } catch (err) {
@@ -648,7 +641,7 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
       .findMany({
         where: {
           uid: parseInt(uid),
-          status: { in: ["registered", "present"] },
+          status: { in: ["registered", "present", "absent"] },
         },
         select: { eventid: true, status: true },
       })
