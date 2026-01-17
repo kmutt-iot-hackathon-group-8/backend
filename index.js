@@ -222,7 +222,9 @@ app.post("/api/v1/register-user", async (req, res) => {
 
     // Notify ESP32 via MQTT
     if (cardId) {
+      console.log(`[MQTT] Publishing success for cardId: ${cardId}`);
       mqttClient.publish("iot2026-kmutt", `success:${cardId}`);
+      console.log(`[MQTT] Published: success:${cardId} to topic iot2026-kmutt`);
     }
 
     return res.status(201).json({
@@ -916,7 +918,9 @@ app.post("/signup", async (req, res) => {
 
     // Notify ESP32 via MQTT if cardId is provided
     if (cardid) {
+      console.log(`[MQTT] Publishing success for cardId: ${cardid}`);
       mqttClient.publish("iot2026-kmutt", `success:${cardid}`);
+      console.log(`[MQTT] Published: success:${cardid} to topic iot2026-kmutt`);
     }
 
     res.status(201).json({ success: true, user: newUser });
