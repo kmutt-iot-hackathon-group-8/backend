@@ -412,7 +412,7 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
   }
 
   try {
-    // Get event details to check dates
+    // Get event details to check dates and ownership
     const event = await prisma.event.findUnique({
       where: { eventid: parseInt(eventId) },
       select: {
@@ -420,6 +420,7 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
         eventendtime: true,
         regisstart: true,
         regisend: true,
+        eventowner: true,
       },
     });
 
@@ -427,6 +428,16 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Event not found" });
+    }
+
+    // Check if user is the event owner
+    if (parseInt(event.eventowner) === parseInt(uid)) {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Cannot register for your own event",
+        });
     }
 
     const now = new Date();
@@ -499,6 +510,23 @@ app.post("/api/v1/events/:eventId/checkin", async (req, res) => {
   }
 
   try {
+    // Check if user is the event owner
+    const event = await prisma.event.findUnique({
+      where: { eventid: parseInt(eventId) },
+      select: { eventowner: true },
+    });
+
+    if (!event) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Event not found" });
+    }
+
+    if (parseInt(event.eventowner) === parseInt(uid)) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Cannot check in to your own event" });
+    }
     // Check if registered
     const existing = await prisma.attendee.findFirst({
       where: { uid: parseInt(uid), eventid: parseInt(eventId) },

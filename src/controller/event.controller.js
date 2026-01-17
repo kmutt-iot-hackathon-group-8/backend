@@ -1,20 +1,45 @@
-import { neon } from '@neondatabase/serverless';
+import { neon } from "@neondatabase/serverless";
 const sql = neon(process.env.DATABASE_URL);
 
 export async function createEvent(req, res) {
-  let { eventOwner, eventDetail, eventIMG, eventStartDate, eventEndDate
-    , eventStartTime, eventEndTime, regisStart, regisEnd, contact, eventtitle, eventlocation
+  let {
+    eventOwner,
+    eventDetail,
+    eventIMG,
+    eventStartDate,
+    eventEndDate,
+    eventStartTime,
+    eventEndTime,
+    regisStart,
+    regisEnd,
+    contact,
+    eventtitle,
+    eventlocation,
   } = req.body;
-  
-  console.log('Received data:', req.body);
-  
+
+  console.log("Received data:", req.body);
+
   try {
     // Validate required fields
-    if (!eventStartDate || !eventEndDate || !eventStartTime || !eventEndTime || !regisStart || !regisEnd) {
-      console.log('Missing fields:', {
-        eventStartDate, eventEndDate, eventStartTime, eventEndTime, regisStart, regisEnd
+    if (
+      !eventStartDate ||
+      !eventEndDate ||
+      !eventStartTime ||
+      !eventEndTime ||
+      !regisStart ||
+      !regisEnd
+    ) {
+      console.log("Missing fields:", {
+        eventStartDate,
+        eventEndDate,
+        eventStartTime,
+        eventEndTime,
+        regisStart,
+        regisEnd,
       });
-      return res.status(400).json({ error: 'Missing required date/time fields' });
+      return res
+        .status(400)
+        .json({ error: "Missing required date/time fields" });
     }
 
     // Format dates as YYYY-MM-DD (handle both date strings and ISO datetime strings)
@@ -22,30 +47,53 @@ export async function createEvent(req, res) {
     const endDateObj = new Date(eventEndDate);
     const regisStartObj = new Date(regisStart);
     const regisEndObj = new Date(regisEnd);
-    
+
     // Check if dates are valid
-    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime()) || 
-        isNaN(regisStartObj.getTime()) || isNaN(regisEndObj.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
+    if (
+      isNaN(startDateObj.getTime()) ||
+      isNaN(endDateObj.getTime()) ||
+      isNaN(regisStartObj.getTime()) ||
+      isNaN(regisEndObj.getTime())
+    ) {
+      return res.status(400).json({ error: "Invalid date format" });
     }
-    
-    eventStartDate = startDateObj.toISOString().split('T')[0];
-    eventEndDate = endDateObj.toISOString().split('T')[0];
-    regisStart = regisStartObj.toISOString().split('T')[0];
-    regisEnd = regisEndObj.toISOString().split('T')[0];
-    
+
+    eventStartDate = startDateObj.toISOString().split("T")[0];
+    eventEndDate = endDateObj.toISOString().split("T")[0];
+    regisStart = regisStartObj.toISOString().split("T")[0];
+    regisEnd = regisEndObj.toISOString().split("T")[0];
+
     // Format times as HH:MM:SS
     // Handle both HH:MM:SS strings and ISO datetime strings
-    const startTimeObj = new Date(eventStartTime);
-    const endTimeObj = new Date(eventEndTime);
-    
-    if (isNaN(startTimeObj.getTime()) || isNaN(endTimeObj.getTime())) {
-      return res.status(400).json({ error: 'Invalid time format' });
+    let startTimeStr = eventStartTime;
+    let endTimeStr = eventEndTime;
+
+    // If it's an ISO datetime string, extract the time part
+    if (startTimeStr.includes("T")) {
+      const startTimeObj = new Date(startTimeStr);
+      if (isNaN(startTimeObj.getTime())) {
+        return res.status(400).json({ error: "Invalid time format" });
+      }
+      startTimeStr = startTimeObj.toISOString().split("T")[1].split(".")[0];
     }
-    
-    eventStartTime = startTimeObj.toISOString().split('T')[1].split('.')[0];
-    eventEndTime = endTimeObj.toISOString().split('T')[1].split('.')[0];
-    
+
+    if (endTimeStr.includes("T")) {
+      const endTimeObj = new Date(endTimeStr);
+      if (isNaN(endTimeObj.getTime())) {
+        return res.status(400).json({ error: "Invalid time format" });
+      }
+      endTimeStr = endTimeObj.toISOString().split("T")[1].split(".")[0];
+    }
+
+    // Validate HH:MM:SS format
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+    if (!timeRegex.test(startTimeStr) || !timeRegex.test(endTimeStr)) {
+      return res.status(400).json({ error: "Invalid time format" });
+    }
+
+    eventStartTime = startTimeStr;
+    eventEndTime = endTimeStr;
+
     const newEvent = await sql`
         INSERT INTO events ("eventowner", "eventdetail", "eventimg", "eventstartdate", "eventenddate", "eventstarttime", "eventendtime", "regisstart", "regisend", "contact", "eventtitle", "eventlocation")
         VALUES (${eventOwner}, ${eventDetail}, ${eventIMG}, ${eventStartDate}, ${eventEndDate}, ${eventStartTime}, ${eventEndTime}, ${regisStart}, ${regisEnd}, ${contact}, ${eventtitle}, ${eventlocation})
@@ -53,27 +101,38 @@ export async function createEvent(req, res) {
     `;
     res.status(201).json({ success: true, event: newEvent[0] });
   } catch (err) {
-    console.error('Create event error:', err);
-    res.status(500).json({ error: 'Failed to create event' });
+    console.error("Create event error:", err);
+    res.status(500).json({ error: "Failed to create event" });
   }
 }
 
 export async function updateEvent(req, res) {
   const { eventId } = req.params;
-  const { eventOwner, eventDetail, eventIMG, eventStartDate, eventEndDate
-    , eventStartTime, eventEndTime, regisStart, regisEnd, contact, eventtitle, eventlocation
+  const {
+    eventOwner,
+    eventDetail,
+    eventIMG,
+    eventStartDate,
+    eventEndDate,
+    eventStartTime,
+    eventEndTime,
+    regisStart,
+    regisEnd,
+    contact,
+    eventtitle,
+    eventlocation,
   } = req.body;
-  
-  console.log('Updating event:', eventId, 'with data:', req.body);
-  
+
+  console.log("Updating event:", eventId, "with data:", req.body);
+
   try {
     // Fetch the existing event first
     const existingEvent = await sql`
       SELECT * FROM events WHERE "eventid" = ${eventId};
     `;
-    
+
     if (existingEvent.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: "Event not found" });
     }
 
     const existing = existingEvent[0];
@@ -81,20 +140,22 @@ export async function updateEvent(req, res) {
     // Build update object with only provided fields (fallback to existing values)
     const updates = {
       eventOwner: eventOwner !== undefined ? eventOwner : existing.eventowner,
-      eventDetail: eventDetail !== undefined ? eventDetail : existing.eventdetail,
+      eventDetail:
+        eventDetail !== undefined ? eventDetail : existing.eventdetail,
       eventIMG: eventIMG !== undefined ? eventIMG : existing.eventimg,
       contact: contact !== undefined ? contact : existing.contact,
       eventtitle: eventtitle !== undefined ? eventtitle : existing.eventtitle,
-      eventlocation: eventlocation !== undefined ? eventlocation : existing.eventlocation,
+      eventlocation:
+        eventlocation !== undefined ? eventlocation : existing.eventlocation,
     };
 
     // Handle date fields with formatting
     if (eventStartDate) {
       const startDateObj = new Date(eventStartDate);
       if (isNaN(startDateObj.getTime())) {
-        return res.status(400).json({ error: 'Invalid eventStartDate format' });
+        return res.status(400).json({ error: "Invalid eventStartDate format" });
       }
-      updates.eventStartDate = startDateObj.toISOString().split('T')[0];
+      updates.eventStartDate = startDateObj.toISOString().split("T")[0];
     } else {
       updates.eventStartDate = existing.eventstartdate;
     }
@@ -102,9 +163,9 @@ export async function updateEvent(req, res) {
     if (eventEndDate) {
       const endDateObj = new Date(eventEndDate);
       if (isNaN(endDateObj.getTime())) {
-        return res.status(400).json({ error: 'Invalid eventEndDate format' });
+        return res.status(400).json({ error: "Invalid eventEndDate format" });
       }
-      updates.eventEndDate = endDateObj.toISOString().split('T')[0];
+      updates.eventEndDate = endDateObj.toISOString().split("T")[0];
     } else {
       updates.eventEndDate = existing.eventenddate;
     }
@@ -112,9 +173,9 @@ export async function updateEvent(req, res) {
     if (regisStart) {
       const regisStartObj = new Date(regisStart);
       if (isNaN(regisStartObj.getTime())) {
-        return res.status(400).json({ error: 'Invalid regisStart format' });
+        return res.status(400).json({ error: "Invalid regisStart format" });
       }
-      updates.regisStart = regisStartObj.toISOString().split('T')[0];
+      updates.regisStart = regisStartObj.toISOString().split("T")[0];
     } else {
       updates.regisStart = existing.regisstart;
     }
@@ -122,9 +183,9 @@ export async function updateEvent(req, res) {
     if (regisEnd) {
       const regisEndObj = new Date(regisEnd);
       if (isNaN(regisEndObj.getTime())) {
-        return res.status(400).json({ error: 'Invalid regisEnd format' });
+        return res.status(400).json({ error: "Invalid regisEnd format" });
       }
-      updates.regisEnd = regisEndObj.toISOString().split('T')[0];
+      updates.regisEnd = regisEndObj.toISOString().split("T")[0];
     } else {
       updates.regisEnd = existing.regisend;
     }
@@ -133,9 +194,12 @@ export async function updateEvent(req, res) {
     if (eventStartTime) {
       const startTimeObj = new Date(eventStartTime);
       if (isNaN(startTimeObj.getTime())) {
-        return res.status(400).json({ error: 'Invalid eventStartTime format' });
+        return res.status(400).json({ error: "Invalid eventStartTime format" });
       }
-      updates.eventStartTime = startTimeObj.toISOString().split('T')[1].split('.')[0];
+      updates.eventStartTime = startTimeObj
+        .toISOString()
+        .split("T")[1]
+        .split(".")[0];
     } else {
       updates.eventStartTime = existing.eventstarttime;
     }
@@ -143,13 +207,16 @@ export async function updateEvent(req, res) {
     if (eventEndTime) {
       const endTimeObj = new Date(eventEndTime);
       if (isNaN(endTimeObj.getTime())) {
-        return res.status(400).json({ error: 'Invalid eventEndTime format' });
+        return res.status(400).json({ error: "Invalid eventEndTime format" });
       }
-      updates.eventEndTime = endTimeObj.toISOString().split('T')[1].split('.')[0];
+      updates.eventEndTime = endTimeObj
+        .toISOString()
+        .split("T")[1]
+        .split(".")[0];
     } else {
       updates.eventEndTime = existing.eventendtime;
     }
-    
+
     const updatedEvent = await sql`
         UPDATE events 
         SET "eventowner" = ${updates.eventOwner}, 
@@ -167,11 +234,11 @@ export async function updateEvent(req, res) {
         WHERE "eventid" = ${eventId}
         RETURNING *;
     `;
-    
+
     res.status(200).json({ success: true, event: updatedEvent[0] });
   } catch (err) {
-    console.error('Update event error:', err);
-    res.status(500).json({ error: 'Failed to update event' });
+    console.error("Update event error:", err);
+    res.status(500).json({ error: "Failed to update event" });
   }
 }
 
@@ -180,14 +247,14 @@ export async function getEventById(req, res) {
   try {
     const event = await sql`
       SELECT * FROM events WHERE "eventid" = ${eventId};
-    `; 
+    `;
     if (event.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: "Event not found" });
     }
     res.status(200).json({ success: true, event: event[0] });
   } catch (err) {
-    console.error('Get event by ID error:', err);
-    res.status(500).json({ error: 'Failed to retrieve event' });
+    console.error("Get event by ID error:", err);
+    res.status(500).json({ error: "Failed to retrieve event" });
   }
 }
 
@@ -198,13 +265,12 @@ export async function deleteEvent(req, res) {
       DELETE FROM events WHERE "eventid" = ${eventid} RETURNING *;
     `;
     if (deletedEvent.length === 0) {
-      return res.status(404).json({ error: 'Event not found' });
+      return res.status(404).json({ error: "Event not found" });
     }
     res.status(200).json({ success: true, event: deletedEvent[0] });
-  }
-  catch (err) {
-    console.error('Delete event error:', err);
-    res.status(500).json({ error: 'Failed to delete event' });
+  } catch (err) {
+    console.error("Delete event error:", err);
+    res.status(500).json({ error: "Failed to delete event" });
   }
 }
 export async function getAllUserEvents(req, res) {
@@ -213,10 +279,23 @@ export async function getAllUserEvents(req, res) {
     const events = await sql`
       SELECT * FROM events WHERE "eventowner" = ${userId} ORDER BY "eventid" DESC;
     `;
-    res.status(200).json({ success: true, events });
+
+    // Add attendee count for each event
+    const eventsWithCounts = await Promise.all(
+      events.map(async (event) => {
+        const attendeeCount = await sql`
+          SELECT COUNT(*) as count FROM attendees WHERE "eventid" = ${event.eventid};
+        `;
+        return {
+          ...event,
+          attendeeCount: parseInt(attendeeCount[0].count) || 0,
+        };
+      }),
+    );
+
+    res.status(200).json({ success: true, events: eventsWithCounts });
   } catch (err) {
-    console.error('Get user events error:', err);
-    res.status(500).json({ error: 'Failed to retrieve events' });
+    console.error("Get user events error:", err);
+    res.status(500).json({ error: "Failed to retrieve events" });
   }
 }
-
