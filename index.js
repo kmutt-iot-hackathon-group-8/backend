@@ -51,6 +51,10 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
     return res.status(400).send("INVALID_CARD_ID");
   }
 
+  if (!eventId) {
+    return res.status(400).send("MISSING_EVENT_ID");
+  }
+
   try {
     // DB CHECK: Find user by the actual scanned cardId
     const users = await prisma.user.findMany({
@@ -58,46 +62,55 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
       select: { uid: true, fname: true, lname: true },
     });
 
-    // SCENARIO 1: Brand New User (Not in database)
+    // SCENARIO 1: Brand New User (Card not registered)
     if (users.length === 0) {
-      console.log(`New card detected: ${cardId}. Redirecting to register...`);
+      console.log(
+        `New card detected: ${cardId}. Returning registration QR code...`,
+      );
       const regUrl = `${BASE_URL}/register?cardId=${cardId}&eventId=${eventId}`;
       return res.send(regUrl); // ESP32 will turn this into a QR Code
     }
 
     const user = users[0];
 
-    // SCENARIO 2: Known User -> Check Event Attendance
-    const registration = await prisma.attendee.findMany({
+    // SCENARIO 2: Known User -> Check if they're in attendee table for this event
+    const existingAttendee = await prisma.attendee.findFirst({
       where: { uid: user.uid, eventId: parseInt(eventId) },
       select: { status: true },
     });
 
-    // JIT (Just-In-Time) REGISTRATION: User exists but not registered for THIS event
-    if (registration.length === 0) {
-      console.log(`Auto-registering ${user.fname} for Event ${eventId}`);
+    // If not in attendee table, add them with status 'present'
+    if (!existingAttendee) {
+      console.log(
+        `First time check-in: Adding ${user.fname} to attendee table for Event ${eventId}`,
+      );
 
       await prisma.attendee.create({
-        data: { eventId: parseInt(eventId), uid: user.uid, status: "present" },
+        data: {
+          eventId: parseInt(eventId),
+          uid: user.uid,
+          status: "present",
+        },
       });
-      await prisma.history.create({
-        data: { uid: user.uid, eventId: parseInt(eventId) },
-      });
+    }
+    // If already in attendee table but not present, update status to 'present'
+    else if (existingAttendee.status !== "present") {
+      console.log(
+        `Updating status to present for ${user.fname} in Event ${eventId}`,
+      );
 
-      io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
-      return res.send(`WELCOME_${user.fname.toUpperCase()}`);
+      await prisma.attendee.updateMany({
+        where: { uid: user.uid, eventId: parseInt(eventId) },
+        data: { status: "present" },
+      });
+    }
+    // If already present, just acknowledge
+    else {
+      console.log(`${user.fname} already checked in for Event ${eventId}`);
+      return res.send(`ALREADY_CHECKED_IN_${user.fname.toUpperCase()}`);
     }
 
-    // SCENARIO 3: User already checked in
-    if (registration[0].status === "present") {
-      return res.send(`ALREADY_IN_${user.fname.toUpperCase()}`);
-    }
-
-    // SCENARIO 4: Registered but absent -> Mark as Present
-    await prisma.attendee.updateMany({
-      where: { uid: user.uid, eventId: parseInt(eventId) },
-      data: { status: "present" },
-    });
+    // Create history entry for check-in
     await prisma.history.create({
       data: { uid: user.uid, eventId: parseInt(eventId) },
     });
@@ -247,9 +260,7 @@ app.get("/api/v1/events", async (req, res) => {
       regisStart: event.regisstart,
       regisEnd: event.regisend,
       contact: event.contact,
-      organizer: event.users
-        ? `${event.users.fname} ${event.users.lname}`
-        : "Unknown Organizer",
+      organizer: event.eventlocation || "Location TBD",
       attendeeCount: countMap.get(event.eventid) || 0,
     }));
 
@@ -302,9 +313,7 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
       regisStart: event.regisstart,
       regisEnd: event.regisend,
       contact: event.contact,
-      organizer: event.users
-        ? `${event.users.fname} ${event.users.lname}`
-        : "Unknown Organizer",
+      organizer: event.eventlocation || "Location TBD",
       attendeeCount: attendeeCount,
     };
     res.json(formattedEvent);
@@ -509,6 +518,7 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
         eventenddate: true,
         eventstarttime: true,
         eventendtime: true,
+        eventlocation: true,
       },
       orderBy: { eventstartdate: "desc" },
     });
@@ -532,6 +542,7 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
             .split("T")[1]
             .split(".")[0],
           endTime: event.eventendtime.toISOString().split("T")[1].split(".")[0],
+          location: event.eventlocation || "Location TBD",
           status: attendeeInfo ? attendeeInfo.status : "registered",
           scanned_at: history ? history.scanned_at : null,
         };
@@ -562,6 +573,7 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
         eventendtime: true,
         regisstart: true,
         regisend: true,
+        eventlocation: true,
       },
       orderBy: { eventstartdate: "desc" },
     });
@@ -576,6 +588,7 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
       endTime: event.eventendtime,
       regisStart: event.regisstart,
       regisEnd: event.regisend,
+      location: event.eventlocation || "Location TBD",
     }));
 
     res.json(formattedEvents);
