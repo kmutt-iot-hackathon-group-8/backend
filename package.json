@@ -18,5 +18,9 @@
     "mqtt": "^5.14.1",
     "nodemon": "^3.1.11",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.19.2",
+    "prisma": "^6.19.2"
   }
 }
