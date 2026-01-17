@@ -1,7 +1,7 @@
-const { neon } = require('@neondatabase/serverless');
+import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.DATABASE_URL);
 
-async function createEvent(req, res) {
+export async function createEvent(req, res) {
   let { eventOwner, eventDetail, eventIMG, eventStartDate, eventEndDate
     , eventStartTime, eventEndTime, regisStart, regisEnd, contact, eventtitle
   } = req.body;
@@ -58,4 +58,15 @@ async function createEvent(req, res) {
   }
 }
 
-module.exports = { createEvent };
+export async function getAllUserEvents(req, res) {
+  const { userId } = req.params;
+  try {
+    const events = await sql`
+      SELECT * FROM events WHERE "eventowner" = ${userId} ORDER BY "eventid" DESC;
+    `;
+    res.status(200).json({ success: true, events });
+  } catch (err) {
+    console.error('Get user events error:', err);
+    res.status(500).json({ error: 'Failed to retrieve events' });
+  }
+}
