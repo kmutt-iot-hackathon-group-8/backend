@@ -12,15 +12,18 @@
   "description": "",
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
+    "cloudinary": "^2.9.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "mqtt": "^5.14.1",
+    "multer": "^2.0.2",
     "nodemon": "^3.1.11",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "@prisma/client": "^6.19.2",
     "prisma": "^6.19.2"
-  }
+  },
+  "packageManager": "pnpm@10.18.1+sha512.77a884a165cbba2d8d1c19e3b4880eee6d2fcabd0d879121e282196b80042351d5eb3ca0935fa599da1dc51265cc68816ad2bddd2a2de5ea9fdf92adbec7cd34"
 }
