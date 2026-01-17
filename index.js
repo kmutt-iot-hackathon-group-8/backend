@@ -408,6 +408,8 @@ app.get("/", (_, res) => {
 const cloudinaryRoutes = require('./src/routes/cloudinary.route');
 app.use('/api', cloudinaryRoutes);
 
+const eventRoutes = require('./src/routes/event.route');
+app.use('/api', eventRoutes);
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });

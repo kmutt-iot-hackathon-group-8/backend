@@ -1,5 +1,5 @@
-const cloudinary = require('../util/cloudinary');
 const { neon } = require('@neondatabase/serverless');
+const { v2: cloudinary } = require('cloudinary');
 const sql = neon(process.env.DATABASE_URL);
 
 async function uploadImagePicController(req, res) {
@@ -28,9 +28,9 @@ async function uploadImagePicController(req, res) {
     // Save URL to database
     const newIMG = await sql`
       UPDATE events 
-      SET "eventIMG" = ${imageURL}
-      WHERE "eventId" = ${eventId}
-      RETURNING "eventId", "eventIMG"
+      SET "eventimg" = ${imageURL}
+      WHERE "eventid" = ${eventId}
+      RETURNING "eventid", "eventimg"
     `;
 
     if (newIMG.length === 0) {

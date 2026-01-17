@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,45 +8,42 @@ datasource db {
 }
 
 model User {
-  uid           Int      @id @default(autoincrement())
-  fname         String   @db.VarChar(255)
-  lname         String   @db.VarChar(255)
-  email         String   @unique @db.VarChar(254)
-  cardId        String?  @db.VarChar(20)
-  userPassword  String   @db.VarChar(255)
-  events        Event[]
-  attendees     Attendee[]
-  history       History[]
+  uid          Int        @id @default(autoincrement())
+  fname        String     @db.VarChar(255)
+  lname        String     @db.VarChar(255)
+  email        String     @unique @db.VarChar(254)
+  cardId       String?    @db.VarChar(20)
+  userPassword String     @db.VarChar(255)
+  attendees    Attendee[]
+  events       Event[]
+  history      History[]
 
   @@map("users")
 }
 
 model Event {
-  eventId         Int         @id @default(autoincrement())
-  eventOwner      Int
-  eventDetail     String?     @db.Text
-  eventIMG        String?     @db.VarChar(255)
-  eventStartDate  DateTime   @db.Date
-  eventEndDate    DateTime   @db.Date
-  eventStartTime  DateTime   @db.Time
-  eventEndTime    DateTime   @db.Time
-  regisStart      DateTime   @db.Date
-  regisEnd        DateTime   @db.Date
-  contact         String?     @db.Text
-  regisURL        String      @db.Text
-  owner           User        @relation(fields: [eventOwner], references: [uid], onDelete: Cascade)
-  attendees       Attendee[]
-  history         History[]
+  eventid        Int      @id @default(autoincrement())
+  eventowner     Int?
+  eventdetail    String?
+  eventimg       String?  @db.VarChar(255)
+  eventstartdate DateTime @db.Date
+  eventenddate   DateTime @db.Date
+  eventstarttime DateTime @db.Time(6)
+  eventendtime   DateTime @db.Time(6)
+  regisstart     DateTime @db.Date
+  regisend       DateTime @db.Date
+  contact        String?
+  eventtitle     String?  @db.VarChar(255)
+  users          User?    @relation(fields: [eventowner], references: [uid], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("events")
 }
 
 model Attendee {
-  eventId   Int
-  uid       Int
-  status    AttendeeStatus
-  event     Event @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
-  user      User  @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  eventId Int
+  uid     Int
+  status  AttendeeStatus
+  user    User           @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
   @@id([eventId, uid])
   @@map("attendees")
@@ -59,9 +53,8 @@ model History {
   historyId  Int      @id @default(autoincrement())
   uid        Int
   eventId    Int
-  scanned_at DateTime @default(now()) @db.Timestamp
+  scanned_at DateTime @default(now()) @db.Timestamp(6)
   user       User     @relation(fields: [uid], references: [uid], onDelete: Cascade)
-  event      Event    @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
 
   @@map("history")
 }
