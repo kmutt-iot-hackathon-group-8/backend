@@ -54,7 +54,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
   try {
     // DB CHECK: Find user by the actual scanned cardId
     const users = await prisma.user.findMany({
-      where: { cardId },
+      where: { cardid: cardId },
       select: { uid: true, fname: true, lname: true },
     });
 
@@ -69,7 +69,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 
     // SCENARIO 2: Known User -> Check Event Attendance
     const registration = await prisma.attendee.findMany({
-      where: { uid: user.uid, eventId: parseInt(eventId) },
+      where: { uid: user.uid, eventid: parseInt(eventId) },
       select: { status: true },
     });
 
@@ -78,10 +78,10 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
       console.log(`Auto-registering ${user.fname} for Event ${eventId}`);
 
       await prisma.attendee.create({
-        data: { eventId: parseInt(eventId), uid: user.uid, status: "present" },
+        data: { eventid: parseInt(eventId), uid: user.uid, status: "present" },
       });
       await prisma.history.create({
-        data: { uid: user.uid, eventId: parseInt(eventId) },
+        data: { uid: user.uid, eventid: parseInt(eventId) },
       });
 
       io.emit("announcement", `Welcome, ${user.fname}! (Auto-Registered)`);
@@ -95,11 +95,11 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 
     // SCENARIO 4: Registered but absent -> Mark as Present
     await prisma.attendee.updateMany({
-      where: { uid: user.uid, eventId: parseInt(eventId) },
+      where: { uid: user.uid, eventid: parseInt(eventId) },
       data: { status: "present" },
     });
     await prisma.history.create({
-      data: { uid: user.uid, eventId: parseInt(eventId) },
+      data: { uid: user.uid, eventid: parseInt(eventId) },
     });
 
     console.log(`Success: ${user.fname} checked into Event ${eventId}`);
@@ -162,8 +162,8 @@ app.post("/api/v1/register-user", async (req, res) => {
         fname: firstName,
         lname: lastName,
         email,
-        cardId,
-        userPassword: password,
+        cardid: cardId,
+        userpassword: password,
       },
       select: { uid: true },
     });
@@ -173,11 +173,11 @@ app.post("/api/v1/register-user", async (req, res) => {
     // 3. Immediately register them for the event they scanned for
     if (eventId) {
       await prisma.attendee.create({
-        data: { eventId: parseInt(eventId), uid: newUid, status: "present" },
+        data: { eventid: parseInt(eventId), uid: newUid, status: "present" },
       });
       // Log the first-time entry
       await prisma.history.create({
-        data: { uid: newUid, eventId: parseInt(eventId) },
+        data: { uid: newUid, eventid: parseInt(eventId) },
       });
     }
     // return { uid: newUid };
@@ -228,11 +228,11 @@ app.get("/api/v1/events", async (req, res) => {
 
     // Get attendee counts
     const attendeeCounts = await prisma.attendee.groupBy({
-      by: ["eventId"],
+      by: ["eventid"],
       _count: { uid: true },
     });
     const countMap = new Map(
-      attendeeCounts.map((c) => [c.eventId, c._count.uid]),
+      attendeeCounts.map((c) => [c.eventid, c._count.uid]),
     );
 
     const formattedEvents = events.map((event) => ({
@@ -287,7 +287,7 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
 
     // Get attendee count
     const attendeeCount = await prisma.attendee.count({
-      where: { eventId: parseInt(eventId) },
+      where: { eventid: parseInt(eventId) },
     });
 
     const formattedEvent = {
@@ -328,7 +328,7 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
   try {
     // Check if already registered
     const existing = await prisma.attendee.findFirst({
-      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      where: { uid: parseInt(uid), eventid: parseInt(eventId) },
     });
 
     if (existing) {
@@ -340,7 +340,7 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
     // Register with status "registered"
     await prisma.attendee.create({
       data: {
-        eventId: parseInt(eventId),
+        eventid: parseInt(eventId),
         uid: parseInt(uid),
         status: "registered",
       },
@@ -367,7 +367,7 @@ app.post("/api/v1/events/:eventId/checkin", async (req, res) => {
   try {
     // Check if registered
     const existing = await prisma.attendee.findFirst({
-      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      where: { uid: parseInt(uid), eventid: parseInt(eventId) },
     });
 
     if (!existing) {
@@ -378,13 +378,13 @@ app.post("/api/v1/events/:eventId/checkin", async (req, res) => {
 
     // Update status to "present"
     await prisma.attendee.updateMany({
-      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      where: { uid: parseInt(uid), eventid: parseInt(eventId) },
       data: { status: "present" },
     });
 
     // Log the check-in
     await prisma.history.create({
-      data: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      data: { uid: parseInt(uid), eventid: parseInt(eventId) },
     });
 
     res.json({ success: true, message: "Checked in successfully" });
@@ -399,7 +399,7 @@ app.get("/api/v1/events/:eventId/attendees", async (req, res) => {
   const { eventId } = req.params;
   try {
     const attendees = await prisma.attendee.findMany({
-      where: { eventId: parseInt(eventId) },
+      where: { eventid: parseInt(eventId) },
       include: {
         user: { select: { uid: true, fname: true, lname: true, email: true } },
       },
@@ -463,7 +463,7 @@ app.put("/api/v1/users/:uid", async (req, res) => {
     if (firstName) updateData.fname = firstName;
     if (lastName) updateData.lname = lastName;
     if (email) updateData.email = email;
-    if (password) updateData.userPassword = password;
+    if (password) updateData.userpassword = password;
 
     const updatedUser = await prisma.user.update({
       where: { uid: parseInt(uid) },
@@ -488,10 +488,10 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
           uid: parseInt(uid),
           status: { in: ["registered", "present"] },
         },
-        select: { eventId: true, status: true },
+        select: { eventid: true, status: true },
       })
       .then((attendees) =>
-        attendees.map((a) => ({ eventId: a.eventId, status: a.status })),
+        attendees.map((a) => ({ eventid: a.eventid, status: a.status })),
       );
 
     if (eventIds.length === 0) {
@@ -499,7 +499,7 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
     }
 
     const events = await prisma.event.findMany({
-      where: { eventid: { in: eventIds.map((e) => e.eventId) } },
+      where: { eventid: { in: eventIds.map((e) => e.eventid) } },
       select: {
         eventid: true,
         eventtitle: true,
@@ -515,11 +515,11 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
 
     const formattedEvents = await Promise.all(
       events.map(async (event) => {
-        const attendeeInfo = eventIds.find((e) => e.eventId === event.eventid);
+        const attendeeInfo = eventIds.find((e) => e.eventid === event.eventid);
         const history = await prisma.history.findFirst({
-          where: { uid: parseInt(uid), eventId: event.eventid },
-          select: { scanned_at: true },
-          orderBy: { scanned_at: "desc" },
+          where: { uid: parseInt(uid), eventid: event.eventid },
+          select: { scannedat: true },
+          orderBy: { scannedat: "desc" },
         });
         return {
           eventId: event.eventid,
@@ -533,7 +533,7 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
             .split(".")[0],
           endTime: event.eventendtime.toISOString().split("T")[1].split(".")[0],
           status: attendeeInfo ? attendeeInfo.status : "registered",
-          scanned_at: history ? history.scanned_at : null,
+          scanned_at: history ? history.scannedat : null,
         };
       }),
     );
@@ -590,7 +590,7 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await prisma.user.findFirst({
-      where: { email, userPassword: password },
+      where: { email, userpassword: password },
       select: { uid: true, fname: true, lname: true, email: true },
     });
     if (!user) {
@@ -623,7 +623,7 @@ app.post("/signup", async (req, res) => {
         fname: firstName,
         lname: lastName,
         email,
-        userPassword: password,
+        userpassword: password,
       },
       select: { uid: true, fname: true, lname: true, email: true },
     });

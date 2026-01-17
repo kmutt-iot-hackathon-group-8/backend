@@ -12,8 +12,8 @@ model User {
   fname        String     @db.VarChar(255)
   lname        String     @db.VarChar(255)
   email        String     @unique @db.VarChar(254)
-  cardId       String?    @db.VarChar(20)
-  userPassword String     @db.VarChar(255)
+  cardid       String?    @db.VarChar(20)
+  userpassword String     @db.VarChar(255)
   attendees    Attendee[]
   events       Event[]
   history      History[]
@@ -24,7 +24,6 @@ model User {
 model Event {
   eventid        Int      @id @default(autoincrement())
   eventowner     Int?
-  eventtitle     String?  @db.VarChar(255)
   eventdetail    String?
   eventimg       String?  @db.VarChar(255)
   eventstartdate DateTime @db.Date
@@ -34,27 +33,29 @@ model Event {
   regisstart     DateTime @db.Date
   regisend       DateTime @db.Date
   contact        String?
+  eventtitle     String?  @db.VarChar(255)
+  eventlocation  String?
   users          User?    @relation(fields: [eventowner], references: [uid], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("events")
 }
 
 model Attendee {
-  eventId Int
+  eventid Int
   uid     Int
   status  AttendeeStatus
   user    User           @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
-  @@id([eventId, uid])
+  @@id([eventid, uid])
   @@map("attendees")
 }
 
 model History {
-  historyId  Int      @id @default(autoincrement())
-  uid        Int
-  eventId    Int
-  scanned_at DateTime @default(now()) @db.Timestamp(6)
-  user       User     @relation(fields: [uid], references: [uid], onDelete: Cascade)
+  historyid Int      @id @default(autoincrement())
+  uid       Int
+  eventid   Int
+  scannedat DateTime @default(now()) @db.Timestamp(6)
+  user      User     @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
   @@map("history")
 }
