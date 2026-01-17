@@ -12,8 +12,8 @@ model User {
   fname        String     @db.VarChar(255)
   lname        String     @db.VarChar(255)
   email        String     @unique @db.VarChar(254)
-  cardId       String?    @db.VarChar(20)
-  userPassword String     @db.VarChar(255)
+  cardid       String?    @db.VarChar(20)
+  userpassword String     @db.VarChar(255)
   attendees    Attendee[]
   events       Event[]
   history      History[]
@@ -41,20 +41,20 @@ model Event {
 }
 
 model Attendee {
-  eventId Int
+  eventid Int 
   uid     Int
   status  AttendeeStatus
   user    User           @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
-  @@id([eventId, uid])
+  @@id([eventid, uid])
   @@map("attendees")
 }
 
 model History {
-  historyId  Int      @id @default(autoincrement())
+  historyid  Int      @id @default(autoincrement())
   uid        Int
-  eventId    Int
-  scanned_at DateTime @default(now()) @db.Timestamp(6)
+  eventid    Int
+  scannedat DateTime @default(now()) @db.Timestamp(6)
   user       User     @relation(fields: [uid], references: [uid], onDelete: Cascade)
 
   @@map("history")

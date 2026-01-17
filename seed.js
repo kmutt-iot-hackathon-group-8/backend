@@ -10,7 +10,7 @@ async function seed() {
     // 1. Create a "System Admin" user to own the events
     // We use ON CONFLICT to avoid errors if you run this script twice
     const admin = await sql`
-      INSERT INTO users ("fname", "lname", "email", "cardId", "userPassword")
+      INSERT INTO users ("fname", "lname", "email", "cardid", "userpassword")
       VALUES ('System', 'Admin', 'admin@event.com', 'ADMIN_CARD_001', 'admin123')
       ON CONFLICT ("email") DO UPDATE SET fname = EXCLUDED.fname
       RETURNING uid
@@ -68,7 +68,7 @@ async function seed() {
 
     // 4. Create test user
     const testUser = await sql`
-      INSERT INTO users ("fname", "lname", "email", "cardId", "userPassword")
+      INSERT INTO users ("fname", "lname", "email", "cardid", "userpassword")
       VALUES ('John', 'Doe', 'john@example.com', '12:34:56:78', 'password123')
       ON CONFLICT ("email") DO NOTHING
       RETURNING uid
@@ -90,12 +90,12 @@ async function seed() {
       const eventId = firstEvent[0].eventid;
 
       await sql`
-        INSERT INTO attendees ("eventId", "uid", "status")
+        INSERT INTO attendees ("eventid", "uid", "status")
         VALUES (${eventId}, ${userId}, 'present')
       `;
 
       await sql`
-        INSERT INTO history ("uid", "eventId") VALUES (${userId}, ${eventId})
+        INSERT INTO history ("uid", "eventid") VALUES (${userId}, ${eventId})
       `;
 
       console.log(
@@ -110,12 +110,12 @@ async function seed() {
       const eventId = secondEvent[0].eventid;
 
       await sql`
-        INSERT INTO attendees ("eventId", "uid", "status")
+        INSERT INTO attendees ("eventid", "uid", "status")
         VALUES (${eventId}, ${adminId}, 'present')
       `;
 
       await sql`
-        INSERT INTO history ("uid", "eventId") VALUES (${adminId}, ${eventId})
+        INSERT INTO history ("uid", "eventid") VALUES (${adminId}, ${eventId})
       `;
 
       console.log(`✅ Pre-registered Admin for Event ID: ${eventId}`);

@@ -58,7 +58,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
   try {
     // DB CHECK: Find user by the actual scanned cardId
     const users = await prisma.user.findMany({
-      where: { cardId },
+      where: { cardid: cardId },
       select: { uid: true, fname: true, lname: true },
     });
 
@@ -75,7 +75,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 
     // SCENARIO 2: Known User -> Check if they're in attendee table for this event
     const existingAttendee = await prisma.attendee.findFirst({
-      where: { uid: user.uid, eventId: parseInt(eventId) },
+      where: { uid: user.uid, eventid: parseInt(eventId) },
       select: { status: true },
     });
 
@@ -87,7 +87,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 
       await prisma.attendee.create({
         data: {
-          eventId: parseInt(eventId),
+          eventid: parseInt(eventId),
           uid: user.uid,
           status: "present",
         },
@@ -100,7 +100,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
       );
 
       await prisma.attendee.updateMany({
-        where: { uid: user.uid, eventId: parseInt(eventId) },
+        where: { uid: user.uid, eventid: parseInt(eventId) },
         data: { status: "present" },
       });
     }
@@ -112,7 +112,7 @@ app.get("/api/v1/scan-card/:cardId", async (req, res) => {
 
     // Create history entry for check-in
     await prisma.history.create({
-      data: { uid: user.uid, eventId: parseInt(eventId) },
+      data: { uid: user.uid, eventid: parseInt(eventId) },
     });
 
     console.log(`Success: ${user.fname} checked into Event ${eventId}`);
@@ -175,8 +175,8 @@ app.post("/api/v1/register-user", async (req, res) => {
         fname: firstName,
         lname: lastName,
         email,
-        cardId,
-        userPassword: password,
+        cardid: cardId,
+        userpassword: password,
       },
       select: { uid: true },
     });
@@ -186,11 +186,11 @@ app.post("/api/v1/register-user", async (req, res) => {
     // 3. Immediately register them for the event they scanned for
     if (eventId) {
       await prisma.attendee.create({
-        data: { eventId: parseInt(eventId), uid: newUid, status: "present" },
+        data: { eventid: parseInt(eventId), uid: newUid, status: "present" },
       });
       // Log the first-time entry
       await prisma.history.create({
-        data: { uid: newUid, eventId: parseInt(eventId) },
+        data: { uid: newUid, eventid: parseInt(eventId) },
       });
     }
     // return { uid: newUid };
@@ -234,6 +234,7 @@ app.get("/api/v1/events", async (req, res) => {
         regisstart: true,
         regisend: true,
         contact: true,
+        eventlocation: true,
         users: { select: { fname: true, lname: true } },
       },
       orderBy: { eventstartdate: "asc" },
@@ -241,28 +242,67 @@ app.get("/api/v1/events", async (req, res) => {
 
     // Get attendee counts
     const attendeeCounts = await prisma.attendee.groupBy({
-      by: ["eventId"],
+      by: ["eventid"],
       _count: { uid: true },
     });
     const countMap = new Map(
-      attendeeCounts.map((c) => [c.eventId, c._count.uid]),
+      attendeeCounts.map((c) => [c.eventid, c._count.uid]),
     );
 
-    const formattedEvents = events.map((event) => ({
-      eventId: event.eventid,
-      title: event.eventtitle,
-      description: event.eventdetail,
-      image: event.eventimg,
-      startDate: event.eventstartdate,
-      endDate: event.eventenddate,
-      startTime: event.eventstarttime,
-      endTime: event.eventendtime,
-      regisStart: event.regisstart,
-      regisEnd: event.regisend,
-      contact: event.contact,
-      organizer: event.eventlocation || "Location TBD",
-      attendeeCount: countMap.get(event.eventid) || 0,
-    }));
+    const formattedEvents = events.map((event) => {
+      // Determine event status based on current date
+      const now = new Date();
+      const eventEndDateTime = new Date(event.eventenddate);
+      eventEndDateTime.setHours(
+        event.eventendtime.getHours(),
+        event.eventendtime.getMinutes(),
+      );
+
+      let eventStatus = "upcoming";
+      if (now > eventEndDateTime) {
+        eventStatus = "ended";
+      } else {
+        const eventStartDateTime = new Date(event.eventstartdate);
+        eventStartDateTime.setHours(
+          event.eventstarttime.getHours(),
+          event.eventstarttime.getMinutes(),
+        );
+        if (now >= eventStartDateTime) {
+          eventStatus = "ongoing";
+        }
+      }
+
+      return {
+        eventid: event.eventid,
+        title: event.eventtitle,
+        description: event.eventdetail,
+        image: event.eventimg,
+        startDate: event.eventstartdate,
+        endDate: event.eventenddate,
+        startTime: event.eventstarttime,
+        endTime: event.eventendtime,
+        regisStart: event.regisstart,
+        regisEnd: event.regisend,
+        contact: event.contact,
+        location: event.eventlocation || "Location TBD",
+        attendeeCount: countMap.get(event.eventid) || 0,
+        status: eventStatus,
+      };
+    });
+
+    // Update attendee statuses for ended events
+    const endedEvents = formattedEvents.filter((e) => e.status === "ended");
+    for (const event of endedEvents) {
+      await prisma.attendee.updateMany({
+        where: {
+          eventid: event.eventId,
+          status: "registered",
+        },
+        data: {
+          status: "absent",
+        },
+      });
+    }
 
     res.json(formattedEvents);
   } catch (err) {
@@ -289,6 +329,7 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
         regisstart: true,
         regisend: true,
         contact: true,
+        eventlocation: true,
         users: { select: { fname: true, lname: true } },
       },
     });
@@ -298,11 +339,46 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
 
     // Get attendee count
     const attendeeCount = await prisma.attendee.count({
-      where: { eventId: parseInt(eventId) },
+      where: { eventid: parseInt(eventId) },
     });
 
+    // Determine event status based on current date
+    const now = new Date();
+    const eventEndDateTime = new Date(event.eventenddate);
+    eventEndDateTime.setHours(
+      event.eventendtime.getHours(),
+      event.eventendtime.getMinutes(),
+    );
+
+    let eventStatus = "upcoming";
+    if (now > eventEndDateTime) {
+      eventStatus = "ended";
+    } else {
+      const eventStartDateTime = new Date(event.eventstartdate);
+      eventStartDateTime.setHours(
+        event.eventstarttime.getHours(),
+        event.eventstarttime.getMinutes(),
+      );
+      if (now >= eventStartDateTime) {
+        eventStatus = "ongoing";
+      }
+    }
+
+    // Update attendee statuses for ended events
+    if (eventStatus === "ended") {
+      await prisma.attendee.updateMany({
+        where: {
+          eventid: parseInt(eventId),
+          status: "registered",
+        },
+        data: {
+          status: "absent",
+        },
+      });
+    }
+
     const formattedEvent = {
-      eventId: event.eventid,
+      eventid: event.eventid,
       title: event.eventtitle,
       description: event.eventdetail,
       image: event.eventimg,
@@ -313,8 +389,9 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
       regisStart: event.regisstart,
       regisEnd: event.regisend,
       contact: event.contact,
-      organizer: event.eventlocation || "Location TBD",
+      location: event.eventlocation || "Location TBD",
       attendeeCount: attendeeCount,
+      status: eventStatus,
     };
     res.json(formattedEvent);
   } catch (err) {
@@ -335,9 +412,57 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
   }
 
   try {
+    // Get event details to check dates
+    const event = await prisma.event.findUnique({
+      where: { eventid: parseInt(eventId) },
+      select: {
+        eventenddate: true,
+        eventendtime: true,
+        regisstart: true,
+        regisend: true,
+      },
+    });
+
+    if (!event) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Event not found" });
+    }
+
+    const now = new Date();
+    const eventEndDateTime = new Date(event.eventenddate);
+    eventEndDateTime.setHours(
+      event.eventendtime.getHours(),
+      event.eventendtime.getMinutes(),
+    );
+
+    // Check if event has ended
+    if (now > eventEndDateTime) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Event has ended" });
+    }
+
+    // Check if registration period has passed
+    const regisEndDateTime = new Date(event.regisend);
+    regisEndDateTime.setHours(23, 59, 59, 999);
+    if (now > regisEndDateTime) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Registration period has ended" });
+    }
+
+    // Check if registration has started
+    const regisStartDateTime = new Date(event.regisstart);
+    if (now < regisStartDateTime) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Registration has not started yet" });
+    }
+
     // Check if already registered
     const existing = await prisma.attendee.findFirst({
-      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      where: { uid: parseInt(uid), eventid: parseInt(eventId) },
     });
 
     if (existing) {
@@ -349,7 +474,7 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
     // Register with status "registered"
     await prisma.attendee.create({
       data: {
-        eventId: parseInt(eventId),
+        eventid: parseInt(eventId),
         uid: parseInt(uid),
         status: "registered",
       },
@@ -376,7 +501,7 @@ app.post("/api/v1/events/:eventId/checkin", async (req, res) => {
   try {
     // Check if registered
     const existing = await prisma.attendee.findFirst({
-      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      where: { uid: parseInt(uid), eventid: parseInt(eventId) },
     });
 
     if (!existing) {
@@ -387,13 +512,13 @@ app.post("/api/v1/events/:eventId/checkin", async (req, res) => {
 
     // Update status to "present"
     await prisma.attendee.updateMany({
-      where: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      where: { uid: parseInt(uid), eventid: parseInt(eventId) },
       data: { status: "present" },
     });
 
     // Log the check-in
     await prisma.history.create({
-      data: { uid: parseInt(uid), eventId: parseInt(eventId) },
+      data: { uid: parseInt(uid), eventid: parseInt(eventId) },
     });
 
     res.json({ success: true, message: "Checked in successfully" });
@@ -408,7 +533,7 @@ app.get("/api/v1/events/:eventId/attendees", async (req, res) => {
   const { eventId } = req.params;
   try {
     const attendees = await prisma.attendee.findMany({
-      where: { eventId: parseInt(eventId) },
+      where: { eventid: parseInt(eventId) },
       include: {
         user: { select: { uid: true, fname: true, lname: true, email: true } },
       },
@@ -472,7 +597,7 @@ app.put("/api/v1/users/:uid", async (req, res) => {
     if (firstName) updateData.fname = firstName;
     if (lastName) updateData.lname = lastName;
     if (email) updateData.email = email;
-    if (password) updateData.userPassword = password;
+    if (password) updateData.userpassword = password;
 
     const updatedUser = await prisma.user.update({
       where: { uid: parseInt(uid) },
@@ -497,10 +622,10 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
           uid: parseInt(uid),
           status: { in: ["registered", "present"] },
         },
-        select: { eventId: true, status: true },
+        select: { eventid: true, status: true },
       })
       .then((attendees) =>
-        attendees.map((a) => ({ eventId: a.eventId, status: a.status })),
+        attendees.map((a) => ({ eventid: a.eventid, status: a.status })),
       );
 
     if (eventIds.length === 0) {
@@ -508,7 +633,80 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
     }
 
     const events = await prisma.event.findMany({
-      where: { eventid: { in: eventIds.map((e) => e.eventId) } },
+      where: { eventid: { in: eventIds.map((e) => e.eventid) } },
+      select: {
+        eventid: true,
+        eventtitle: true,
+        eventdetail: true,
+        eventimg: true,
+        eventstartdate: true,
+        eventenddate: true,
+        eventstarttime: true,
+        eventendtime: true,
+        eventlocation: true,
+      },
+      orderBy: { eventstartdate: "desc" },
+    });
+
+    const formattedEvents = await Promise.all(
+      events.map(async (event) => {
+        const attendeeInfo = eventIds.find((e) => e.eventid === event.eventid);
+        const history = await prisma.history.findFirst({
+          where: { uid: parseInt(uid), eventid: event.eventid },
+          select: { scannedat: true },
+          orderBy: { scannedat: "desc" },
+        });
+        const attendeeCount = await prisma.attendee.count({
+          where: { eventid: event.eventid },
+        });
+        return {
+          eventid: event.eventid,
+          title: event.eventtitle,
+          image: event.eventimg,
+          startDate: event.eventstartdate.toISOString().split("T")[0],
+          endDate: event.eventenddate.toISOString().split("T")[0],
+          startTime: event.eventstarttime
+            .toISOString()
+            .split("T")[1]
+            .split(".")[0],
+          endTime: event.eventendtime.toISOString().split("T")[1].split(".")[0],
+          location: event.eventlocation || "Location TBD",
+          status: attendeeInfo ? attendeeInfo.status : "registered",
+          scannedat: history ? history.scannedat : null,
+          attendeeCount: attendeeCount,
+        };
+      }),
+    );
+
+    res.json(formattedEvents);
+  } catch (err) {
+    console.error("Error fetching registered events:", err);
+    res.status(500).json({ error: "Failed to fetch registered events" });
+  }
+});
+
+// Get user's attended events
+app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
+  const { uid } = req.params;
+  try {
+    const eventIds = await prisma.attendee
+      .findMany({
+        where: {
+          uid: parseInt(uid),
+          status: "present",
+        },
+        select: { eventid: true, status: true },
+      })
+      .then((attendees) =>
+        attendees.map((a) => ({ eventid: a.eventid, status: a.status })),
+      );
+
+    if (eventIds.length === 0) {
+      return res.json([]);
+    }
+
+    const events = await prisma.event.findMany({
+      where: { eventid: { in: eventIds.map((e) => e.eventid) } },
       select: {
         eventid: true,
         eventtitle: true,
@@ -531,8 +729,11 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
           select: { scanned_at: true },
           orderBy: { scanned_at: "desc" },
         });
+        const attendeeCount = await prisma.attendee.count({
+          where: { eventId: event.eventid },
+        });
         return {
-          eventId: event.eventid,
+          eventid: event.eventid,
           title: event.eventtitle,
           image: event.eventimg,
           startDate: event.eventstartdate.toISOString().split("T")[0],
@@ -543,16 +744,17 @@ app.get("/api/v1/users/:uid/registered-events", async (req, res) => {
             .split(".")[0],
           endTime: event.eventendtime.toISOString().split("T")[1].split(".")[0],
           location: event.eventlocation || "Location TBD",
-          status: attendeeInfo ? attendeeInfo.status : "registered",
-          scanned_at: history ? history.scanned_at : null,
+          status: attendeeInfo ? attendeeInfo.status : "present",
+          scannedat: history ? history.scannedat : null,
+          attendeeCount: attendeeCount,
         };
       }),
     );
 
     res.json(formattedEvents);
   } catch (err) {
-    console.error("Error fetching registered events:", err);
-    res.status(500).json({ error: "Failed to fetch registered events" });
+    console.error("Error fetching attended events:", err);
+    res.status(500).json({ error: "Failed to fetch attended events" });
   }
 });
 
@@ -578,18 +780,26 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
       orderBy: { eventstartdate: "desc" },
     });
 
-    const formattedEvents = events.map((event) => ({
-      eventId: event.eventid,
-      title: event.eventtitle,
-      image: event.eventimg,
-      startDate: event.eventstartdate,
-      endDate: event.eventenddate,
-      startTime: event.eventstarttime,
-      endTime: event.eventendtime,
-      regisStart: event.regisstart,
-      regisEnd: event.regisend,
-      location: event.eventlocation || "Location TBD",
-    }));
+    const formattedEvents = await Promise.all(
+      events.map(async (event) => {
+        const attendeeCount = await prisma.attendee.count({
+          where: { eventId: event.eventid },
+        });
+        return {
+          eventId: event.eventid,
+          title: event.eventtitle,
+          image: event.eventimg,
+          startDate: event.eventstartdate,
+          endDate: event.eventenddate,
+          startTime: event.eventstarttime,
+          endTime: event.eventendtime,
+          regisStart: event.regisstart,
+          regisEnd: event.regisend,
+          location: event.eventlocation || "Location TBD",
+          attendeeCount: attendeeCount,
+        };
+      }),
+    );
 
     res.json(formattedEvents);
   } catch (err) {
@@ -603,7 +813,7 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await prisma.user.findFirst({
-      where: { email, userPassword: password },
+      where: { email, userpassword: password },
       select: { uid: true, fname: true, lname: true, email: true },
     });
     if (!user) {
@@ -620,7 +830,7 @@ app.post("/login", async (req, res) => {
 
 // Signup endpoint
 app.post("/signup", async (req, res) => {
-  const { firstName, lastName, email, password } = req.body;
+  const { firstName, lastName, email, password, cardId, eventId } = req.body;
   try {
     const existing = await prisma.user.findFirst({
       where: { email },
@@ -631,15 +841,35 @@ app.post("/signup", async (req, res) => {
         .status(409)
         .json({ success: false, message: "Email already exists" });
     }
+
+    const userData = {
+      fname: firstName,
+      lname: lastName,
+      email,
+      userpassword: password,
+    };
+
+    // Add cardId if provided (from QR code registration)
+    if (cardId) {
+      userData.cardid = cardId;
+    }
+
     const newUser = await prisma.user.create({
-      data: {
-        fname: firstName,
-        lname: lastName,
-        email,
-        userPassword: password,
-      },
+      data: userData,
       select: { uid: true, fname: true, lname: true, email: true },
     });
+
+    // If eventId is provided (from QR code), register for the event
+    if (eventId && cardId) {
+      await prisma.attendee.create({
+        data: {
+          eventId: parseInt(eventId),
+          uid: newUser.uid,
+          status: "registered",
+        },
+      });
+    }
+
     res.status(201).json({ success: true, user: newUser });
   } catch (err) {
     console.error("Signup error:", err);
