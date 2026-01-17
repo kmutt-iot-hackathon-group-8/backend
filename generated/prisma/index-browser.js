@@ -121,12 +121,11 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
 });
 
 exports.Prisma.UserScalarFieldEnum = {
-  uid: 'uid',
+  id: 'id',
   fname: 'fname',
   lname: 'lname',
   email: 'email',
   cardId: 'cardId',
-  userPassword: 'userPassword',
   name: 'name',
   emailVerified: 'emailVerified',
   image: 'image',
@@ -151,13 +150,13 @@ exports.Prisma.EventScalarFieldEnum = {
 
 exports.Prisma.AttendeeScalarFieldEnum = {
   eventId: 'eventId',
-  uid: 'uid',
+  userId: 'userId',
   status: 'status'
 };
 
 exports.Prisma.HistoryScalarFieldEnum = {
   historyId: 'historyId',
-  uid: 'uid',
+  userId: 'userId',
   eventId: 'eventId',
   scanned_at: 'scanned_at'
 };
@@ -192,8 +191,8 @@ exports.Prisma.AccountScalarFieldEnum = {
 exports.Prisma.VerificationScalarFieldEnum = {
   id: 'id',
   identifier: 'identifier',
-  value: 'value',
   expiresAt: 'expiresAt',
+  value: 'value',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
