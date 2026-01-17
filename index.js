@@ -15,26 +15,6 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
-// MQTT setup
-const mqtt = require("mqtt");
-const mqttClient = mqtt.connect("mqtt://mqtt.eclipseprojects.io");
-
-mqttClient.on("connect", () => {
-  console.log("Connected to MQTT broker");
-});
-
-mqttClient.on("error", (err) => {
-  console.error("MQTT connection error:", err);
-});
-
-mqttClient.on("disconnect", () => {
-  console.log("[MQTT] Disconnected");
-});
-
-mqttClient.on("reconnect", () => {
-  console.log("[MQTT] Reconnecting");
-});
-
 // Configure CORS to allow frontend
 const corsOptions = {
   origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : true, // Allow specific origin in prod, all in dev
@@ -228,18 +208,10 @@ app.post("/api/v1/register-user", async (req, res) => {
     );
     io.emit("registration_success", { name: firstName });
 
-    // Notify ESP32 via MQTT
-    if (cardId) {
-      console.log(`[MQTT] Publishing success for cardId: ${cardId}`);
-      mqttClient.publish("iot2026-kmutt", `success:${cardId}`);
-      console.log(`[MQTT] Published: success:${cardId} to topic iot2026-kmutt`);
-    }
-
     return res.status(201).json({
       success: true,
       message: "Registration and Check-in successful!",
     });
-  } catch (err) {
     console.error("DB Error:", err);
     if (err.message === "EMAIL_EXISTS") {
       return res.status(409).json({
@@ -803,7 +775,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
           attendeeCount: attendeeCount,
         };
       }),
-    );
+    )
 
     res.json(formattedEvents);
   } catch (err) {
@@ -924,18 +896,12 @@ app.post("/signup", async (req, res) => {
       });
     }
 
+    res.status(201).json({ success: true, user: newUser });
+
     // Notify ESP32 via MQTT if cardId is provided
     if (cardid) {
-      console.log(`[MQTT] Publishing success for cardId: ${cardid}`);
-      mqttClient.publish("iot2026-kmutt", `success:${cardid}`);
-      console.log(`[MQTT] Published: success:${cardid} to topic iot2026-kmutt`);
+      mqttClient.publish(`registration/${cardid}`, 'success');
     }
-
-    res.status(201).json({ success: true, user: newUser });
-  } catch (err) {
-    console.error("Signup error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
 });
 
 // Home Page
