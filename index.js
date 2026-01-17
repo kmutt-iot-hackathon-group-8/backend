@@ -367,18 +367,8 @@ app.get("/api/v1/events/:eventId", async (req, res) => {
       }
     }
 
-    // Update attendee statuses for ended events
-    if (eventStatus === "ended") {
-      await prisma.attendee.updateMany({
-        where: {
-          eventid: parseInt(eventId),
-          status: "registered",
-        },
-        data: {
-          status: "absent",
-        },
-      });
-    }
+    // Note: Removed automatic marking of registered users as absent
+    // This should be handled by a proper end-of-event process, not on every fetch
 
     const formattedEvent = {
       eventid: event.eventid,
