@@ -252,20 +252,30 @@ app.get("/api/v1/events", async (req, res) => {
     const formattedEvents = events.map((event) => {
       // Determine event status based on current date
       const now = new Date();
-      
+
       // Create event end datetime properly
       const eventEndDate = new Date(event.eventenddate);
       // Extract time components from the time field
-      const endTimeStr = event.eventendtime.toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
-      const [endHours, endMinutes, endSeconds] = endTimeStr.split(':').map(Number);
-      
+      const endTimeStr = event.eventendtime
+        .toISOString()
+        .split("T")[1]
+        .split(".")[0]; // HH:MM:SS
+      const [endHours, endMinutes, endSeconds] = endTimeStr
+        .split(":")
+        .map(Number);
+
       // Set the time on the end date
       eventEndDate.setHours(endHours, endMinutes, endSeconds, 0);
-      
-      // Create event start datetime properly  
+
+      // Create event start datetime properly
       const eventStartDate = new Date(event.eventstartdate);
-      const startTimeStr = event.eventstarttime.toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
-      const [startHours, startMinutes, startSeconds] = startTimeStr.split(':').map(Number);
+      const startTimeStr = event.eventstarttime
+        .toISOString()
+        .split("T")[1]
+        .split(".")[0]; // HH:MM:SS
+      const [startHours, startMinutes, startSeconds] = startTimeStr
+        .split(":")
+        .map(Number);
       eventStartDate.setHours(startHours, startMinutes, startSeconds, 0);
 
       let eventStatus = "upcoming";
@@ -281,12 +291,12 @@ app.get("/api/v1/events", async (req, res) => {
         title: event.eventtitle,
         description: event.eventdetail,
         image: event.eventimg,
-        startDate: event.eventstartdate.toISOString().split('T')[0],
-        endDate: event.eventenddate.toISOString().split('T')[0],
+        startDate: event.eventstartdate.toISOString().split("T")[0],
+        endDate: event.eventenddate.toISOString().split("T")[0],
         startTime: startTimeStr,
         endTime: endTimeStr,
-        regisStart: event.regisstart.toISOString().split('T')[0],
-        regisEnd: event.regisend.toISOString().split('T')[0],
+        regisStart: event.regisstart.toISOString().split("T")[0],
+        regisEnd: event.regisend.toISOString().split("T")[0],
         contact: event.contact,
         location: event.eventlocation || "Location TBD",
         attendeeCount: countMap.get(event.eventid) || 0,
@@ -425,12 +435,10 @@ app.post("/api/v1/events/:eventId/register", async (req, res) => {
 
     // Check if user is the event owner
     if (parseInt(event.eventowner) === parseInt(uid)) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Cannot register for your own event",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Cannot register for your own event",
+      });
     }
 
     const now = new Date();
