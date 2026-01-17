@@ -8,8 +8,8 @@ async function uploadImagePicController(req, res) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const eventId = req.body.eventId;
-  if (!eventId) {
+  const eventid = req.body.eventid;
+  if (!eventid) {
     return res.status(400).json({ error: 'Event ID is required' });
   }
 
@@ -29,7 +29,7 @@ async function uploadImagePicController(req, res) {
     const newIMG = await sql`
       UPDATE events 
       SET "eventimg" = ${imageURL}
-      WHERE "eventid" = ${eventId}
+      WHERE "eventid" = ${eventid}
       RETURNING "eventid", "eventimg"
     `;
 
