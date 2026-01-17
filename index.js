@@ -857,7 +857,7 @@ app.post("/login", async (req, res) => {
 
 // Signup endpoint
 app.post("/signup", async (req, res) => {
-  const { firstName, lastName, email, password, cardId, eventId } = req.body;
+  const { firstName, lastName, email, password, cardid, eventid } = req.body;
   try {
     const existing = await prisma.user.findFirst({
       where: { email },
@@ -877,8 +877,8 @@ app.post("/signup", async (req, res) => {
     };
 
     // Add cardId if provided (from QR code registration)
-    if (cardId) {
-      userData.cardid = cardId;
+    if (cardid) {
+      userData.cardid = cardid;
     }
 
     const newUser = await prisma.user.create({
@@ -887,10 +887,10 @@ app.post("/signup", async (req, res) => {
     });
 
     // If eventId is provided (from QR code), register for the event
-    if (eventId && cardId) {
+    if (eventid && cardid) {
       await prisma.attendee.create({
         data: {
-          eventId: parseInt(eventId),
+          eventid: parseInt(eventid),
           uid: newUser.uid,
           status: "registered",
         },
