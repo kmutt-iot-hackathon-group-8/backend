@@ -61,6 +61,12 @@ export const auth = betterAuth({
     state: {
       strategy: "cookie", // Use cookie-only state verification instead of database
     },
+    stateCookie: {
+      sameSite: "none",
+      secure: true,
+      httpOnly: true,
+      path: "/",
+    },
     defaultCookieAttributes: {
       sameSite: "none",
       secure: true,
