@@ -37,6 +37,9 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 
 // ===== MIDDLEWARE =====
+// Trust proxy - Required for Render/Cloudflare reverse proxy
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: FRONTEND_URL,
@@ -46,8 +49,8 @@ app.use(
   })
 );
 
-// Auth routes
-app.all("/api/auth/*splat", toNodeHandler(auth));
+// Auth routes - MUST come before body parsers
+app.all("/api/auth/*", toNodeHandler(auth));
 app.use(json());
 app.use(urlencoded({ extended: true }));
 

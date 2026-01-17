@@ -57,12 +57,15 @@ export const auth = betterAuth({
     disableOriginCheck: true,
     crossContext: true,
     useSecureCookies: true,
+    generateSessionToken: true,
     defaultCookieAttributes: {
       sameSite: "none",
       secure: true,
+      httpOnly: true,
+      path: "/",
     },
   },
-  trustedOrigins: [`${FRONTEND_URL}`],
+  trustedOrigins: [FRONTEND_URL, "https://accounts.google.com"],
   baseURL: process.env.BETTER_AUTH_URL || "https://backend-h6j3.onrender.com",
   defaultRedirectURL: FRONTEND_URL,
   socialProviders: {
