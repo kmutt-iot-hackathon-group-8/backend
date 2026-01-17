@@ -22,33 +22,16 @@ model User {
   eventsOwned Event[]    @relation("EventOwner")
   attendances Attendee[]
   history     History[]
-<<<<<<< HEAD
-
-  name          String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-=======
   sessions    Session[]
   accounts    Account[]
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
 
   @@map("users")
 }
 
 model Event {
-<<<<<<< HEAD
-  eventId    Int  @id @default(autoincrement())
-  eventOwner Int
-  owner      User @relation("EventOwner", fields: [eventOwner], references: [uid], onDelete: Cascade)
-=======
   eventId    Int    @id @default(autoincrement())
   eventOwner String
   owner      User   @relation("EventOwner", fields: [eventOwner], references: [id], onDelete: Cascade)
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
 
   eventDetail String? @db.Text
   eventIMG    String? @db.VarChar(255)
@@ -71,15 +54,6 @@ model Event {
 
 model Attendee {
   eventId Int
-<<<<<<< HEAD
-  uid     Int
-  status  STATUS
-
-  event Event @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
-  user  User  @relation(fields: [uid], references: [uid], onDelete: Cascade)
-
-  @@id([eventId, uid])
-=======
   userId  String
   status  STATUS
 
@@ -87,25 +61,16 @@ model Attendee {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([eventId, userId])
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
   @@map("attendees")
 }
 
 model History {
   historyId  Int      @id @default(autoincrement())
-<<<<<<< HEAD
-  uid        Int
-  eventId    Int
-  scanned_at DateTime @default(now()) @db.Timestamp
-
-  user  User  @relation(fields: [uid], references: [uid], onDelete: Cascade)
-=======
   userId     String
   eventId    Int
   scanned_at DateTime @default(now()) @db.Timestamp
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
   event Event @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
 
   @@map("history")
@@ -125,13 +90,8 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
-<<<<<<< HEAD
-  user      User     @relation(fields: [userId], references: [uid], onDelete: Cascade)
-  userId    Int
-=======
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
 
   @@unique([token])
   @@index([userId])
@@ -142,13 +102,8 @@ model Account {
   id                    String    @id
   accountId             String
   providerId            String
-<<<<<<< HEAD
-  userId                Int
-  user                  User      @relation(fields: [userId], references: [uid], onDelete: Cascade)
-=======
   userId                String
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -166,13 +121,8 @@ model Account {
 model Verification {
   id         String   @id
   identifier String
-<<<<<<< HEAD
-  value      String
-  expiresAt  DateTime
-=======
   expiresAt  DateTime
   value      String
->>>>>>> 098067e336552ee1857938fbe9639cbe160b7ebd
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
