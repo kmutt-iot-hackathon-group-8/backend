@@ -58,6 +58,9 @@ export const auth = betterAuth({
     crossContext: true,
     useSecureCookies: true,
     generateSessionToken: true,
+    state: {
+      strategy: "cookie", // Use cookie-only state verification instead of database
+    },
     defaultCookieAttributes: {
       sameSite: "none",
       secure: true,
