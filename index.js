@@ -4,7 +4,10 @@ const app = express();
 const server = require("http").createServer(app);
 const io = require("socket.io")(server, { cors: { origin: "*" } });
 const cors = require("cors");
+const multer = require("multer");
+const { v2: cloudinary } = require("cloudinary");
 const { PrismaClient } = require("@prisma/client");
+
 const prisma = new PrismaClient();
 app.use(cors());
 
@@ -16,6 +19,19 @@ const isProd = process.env.NODE_ENV === "production";
 const BASE_URL = isProd
   ? "https://iot2026.adorio.space"
   : "http://localhost:5173";
+
+const { neon } = require("@neondatabase/serverless");
+const sql = neon(process.env.DATABASE_URL);
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Configure Multer for memory storage
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware
 app.use(express.json());
@@ -621,6 +637,12 @@ app.get("/", (_, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
+// Use cloudinary routes
+const cloudinaryRoutes = require('./src/routes/cloudinary.route');
+app.use('/api', cloudinaryRoutes);
+
+const eventRoutes = require('./src/routes/event.route');
+app.use('/api', eventRoutes);
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
