@@ -17,7 +17,7 @@ const prisma = new PrismaClient();
 
 // MQTT setup
 const mqtt = require("mqtt");
-const mqttClient = mqtt.connect("mqtt://broker.hivemq.com");
+const mqttClient = mqtt.connect("mqtt://test.mosquitto.org");
 
 mqttClient.on("connect", () => {
   console.log("Connected to MQTT broker");
@@ -25,6 +25,14 @@ mqttClient.on("connect", () => {
 
 mqttClient.on("error", (err) => {
   console.error("MQTT connection error:", err);
+});
+
+mqttClient.on("disconnect", () => {
+  console.log("[MQTT] Disconnected");
+});
+
+mqttClient.on("reconnect", () => {
+  console.log("[MQTT] Reconnecting");
 });
 
 // Configure CORS to allow frontend
