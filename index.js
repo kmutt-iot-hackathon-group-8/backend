@@ -15,6 +15,18 @@ const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
+// MQTT setup
+const mqtt = require("mqtt");
+const mqttClient = mqtt.connect("mqtt://broker.hivemq.com");
+
+mqttClient.on("connect", () => {
+  console.log("Connected to MQTT broker");
+});
+
+mqttClient.on("error", (err) => {
+  console.error("MQTT connection error:", err);
+});
+
 // Configure CORS to allow frontend
 const corsOptions = {
   origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : true, // Allow specific origin in prod, all in dev
@@ -207,6 +219,11 @@ app.post("/api/v1/register-user", async (req, res) => {
       `Registered & Checked-in: ${firstName} ${lastName} (${cardId})`,
     );
     io.emit("registration_success", { name: firstName });
+
+    // Notify ESP32 via MQTT
+    if (cardId) {
+      mqttClient.publish("iot2026-kmutt", `success:${cardId}`);
+    }
 
     return res.status(201).json({
       success: true,
@@ -892,9 +909,14 @@ app.post("/signup", async (req, res) => {
         data: {
           eventid: parseInt(eventid),
           uid: newUser.uid,
-          status: "registered",
+          status: "present",
         },
       });
+    }
+
+    // Notify ESP32 via MQTT if cardId is provided
+    if (cardid) {
+      mqttClient.publish("iot2026-kmutt", `success:${cardid}`);
     }
 
     res.status(201).json({ success: true, user: newUser });
