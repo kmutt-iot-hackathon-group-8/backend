@@ -212,6 +212,7 @@ app.post("/api/v1/register-user", async (req, res) => {
       success: true,
       message: "Registration and Check-in successful!",
     });
+  } catch (err) {
     console.error("DB Error:", err);
     if (err.message === "EMAIL_EXISTS") {
       return res.status(409).json({
@@ -775,7 +776,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
           attendeeCount: attendeeCount,
         };
       }),
-    )
+    );
 
     res.json(formattedEvents);
   } catch (err) {
@@ -897,11 +898,10 @@ app.post("/signup", async (req, res) => {
     }
 
     res.status(201).json({ success: true, user: newUser });
-
-    // Notify ESP32 via MQTT if cardId is provided
-    if (cardid) {
-      mqttClient.publish(`registration/${cardid}`, 'success');
-    }
+  } catch (err) {
+    console.error("Signup error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 // Home Page
