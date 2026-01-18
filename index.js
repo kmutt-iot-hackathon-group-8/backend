@@ -1011,6 +1011,42 @@ app.use("/api", cloudinaryRoutes);
 const eventRoutes = require("./src/routes/event.route");
 app.use("/api", eventRoutes);
 
+// Card status endpoint for ESP32 polling
+app.get("/api/v1/card-status/:cardId", async (req, res) => {
+  const { cardId } = req.params;
+
+  try {
+    // Find user by cardId
+    const user = await prisma.user.findFirst({
+      where: { cardid: cardId },
+      select: { uid: true },
+    });
+
+    if (!user) {
+      return res.json({ status: "not_registered" });
+    }
+
+    // Check attendee status for event 1
+    const attendee = await prisma.attendee.findFirst({
+      where: { uid: user.uid, eventid: 1 },
+      select: { status: true },
+    });
+
+    if (!attendee) {
+      return res.json({ status: "registered" }); // registered but not checked in yet
+    }
+
+    if (attendee.status === "present") {
+      return res.json({ status: "present" });
+    } else {
+      return res.json({ status: "pending" });
+    }
+  } catch (err) {
+    console.error("Error checking card status:", err);
+    res.status(500).json({ status: "error" });
+  }
+});
+
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
