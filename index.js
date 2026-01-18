@@ -213,6 +213,11 @@ app.post("/api/v1/register-user", async (req, res) => {
       await prisma.history.create({
         data: { uid: newUid, eventid: parseInt(eventId) },
       });
+
+      io.emit("REGISTRATION_COMPLETE", {
+        type: "REGISTRATION_COMPLETE",
+        message: `You card has been registered and checked in to the event `,
+      });
     }
     // return { uid: newUid };
 
