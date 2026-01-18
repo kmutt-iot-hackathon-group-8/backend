@@ -38,6 +38,19 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+io.on("connection", (socket) => {
+  console.log("New client connected:", socket.id);
+
+  socket.on("join_room", (room) => {
+    socket.join(room);
+    console.log(`Socket ${socket.id} joined room: ${room}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+  });
+});
+
 // Configure Multer for memory storage
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -832,6 +845,43 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
   } catch (err) {
     console.error("Error fetching created events:", err);
     res.status(500).json({ error: "Failed to fetch created events" });
+  }
+});
+
+// Link card to user
+app.post("/api/v1/users/:uid/link-card", async (req, res) => {
+  const { uid } = req.params;
+  const { cardId } = req.body;
+
+  if (!cardId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Card ID is required" });
+  }
+
+  try {
+    const existingUser = await prisma.user.findFirst({
+      where: { cardid: cardId },
+    });
+
+    if (existingUser && existingUser.uid !== parseInt(uid)) {
+      return res.status(409).json({
+        success: false,
+        message: "Card already registered to another user",
+      });
+    }
+
+    await prisma.user.update({
+      where: { uid: parseInt(uid) },
+      data: { cardid: cardId },
+    });
+
+    io.to(`user_${uid}`).emit("card_added", { cardId });
+
+    res.json({ success: true, message: "Card linked successfully" });
+  } catch (err) {
+    console.error("Error linking card:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
