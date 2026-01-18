@@ -237,6 +237,13 @@ app.post("/api/v1/register-user", async (req, res) => {
     );
     io.emit("registration_success", { name: firstName });
 
+    io.emit("iot_action", {
+      type: "REGISTRATION_COMPLETE",
+      cardId: cardId,
+      message:
+        "You have registered your card and successfully check in to the event!",
+    });
+
     return res.status(201).json({
       success: true,
       message: "Registration and Check-in successful!",
@@ -899,8 +906,17 @@ app.post("/api/v1/users/:uid/link-card", async (req, res) => {
       data: { cardid: cardId },
     });
 
+    // notify desktop client
     io.to(`user_${uid}`).emit("card_added", { cardId });
+
     pendingLinkingSessions.delete(uid);
+
+    // notify IoT Devices (ESP32) to stop showing QR/Listening
+    io.emit("iot_action", {
+      type: "CARD_LINKED",
+      cardId: cardId,
+      message: "Card linked successfully",
+    });
 
     res.json({ success: true, message: "Card linked successfully" });
   } catch (err) {
