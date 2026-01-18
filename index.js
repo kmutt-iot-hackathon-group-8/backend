@@ -9,6 +9,7 @@ const io = require("socket.io")(server, {
   },
 });
 const cors = require("cors");
+const bcrypt = require("bcrypt");
 const { v2: cloudinary } = require("cloudinary");
 const { PrismaClient } = require("@prisma/client");
 
@@ -207,13 +208,16 @@ app.post("/api/v1/register-user", async (req, res) => {
     if (existing) throw new Error("EMAIL_EXISTS");
 
     // 2. Insert new user
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const userResult = await prisma.user.create({
       data: {
         fname: firstName,
         lname: lastName,
         email,
         cardid: cardId,
-        userpassword: password,
+        userpassword: hashedPassword,
       },
       select: { uid: true },
     });
@@ -665,7 +669,10 @@ app.put("/api/v1/users/:uid", async (req, res) => {
     if (firstName) updateData.fname = firstName;
     if (lastName) updateData.lname = lastName;
     if (email) updateData.email = email;
-    if (password) updateData.userpassword = password;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updateData.userpassword = await bcrypt.hash(password, salt);
+    }
 
     const updatedUser = await prisma.user.update({
       where: { uid: parseInt(uid) },
@@ -935,15 +942,27 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   try {
     const user = await prisma.user.findFirst({
-      where: { email, userpassword: password },
-      select: { uid: true, fname: true, lname: true, email: true },
+      where: { email },
+      select: { uid: true, fname: true, lname: true, email: true, userpassword: true },
     });
+    
     if (!user) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid email or password" });
     }
-    res.json({ success: true, user });
+
+    const validPassword = await bcrypt.compare(password, user.userpassword);
+    if (!validPassword) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid email or password" });
+    }
+
+    // Remove password from response
+    const { userpassword, ...userWithoutPassword } = user;
+
+    res.json({ success: true, user: userWithoutPassword });
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ success: false, message: "Server error" });
@@ -964,11 +983,14 @@ app.post("/signup", async (req, res) => {
         .json({ success: false, message: "Email already exists" });
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const userData = {
       fname: firstName,
       lname: lastName,
       email,
-      userpassword: password,
+      userpassword: hashedPassword,
     };
 
     // Add cardId if provided (from QR code registration)

@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { neon } from "@neondatabase/serverless";
+import bcrypt from "bcrypt";
 
 const sql = neon(process.env.DATABASE_URL);
 
@@ -7,11 +8,13 @@ async function seed() {
   try {
     console.log("🌱 Seeding database...");
 
+    const adminPassword = await bcrypt.hash("admin123", 10);
+
     // 1. Create a "System Admin" user to own the events
     // We use ON CONFLICT to avoid errors if you run this script twice
     const admin = await sql`
       INSERT INTO users ("fname", "lname", "email", "cardid", "userpassword")
-      VALUES ('System', 'Admin', 'admin@event.com', 'ADMIN_CARD_001', 'admin123')
+      VALUES ('System', 'Admin', 'admin@event.com', 'ADMIN_CARD_001', ${adminPassword})
       ON CONFLICT ("email") DO UPDATE SET fname = EXCLUDED.fname
       RETURNING uid
     `;
@@ -66,10 +69,12 @@ async function seed() {
 
     console.log("✅ Mock events created successfully!");
 
+    const userPassword = await bcrypt.hash("password123", 10);
+
     // 4. Create test user
     const testUser = await sql`
       INSERT INTO users ("fname", "lname", "email", "cardid", "userpassword")
-      VALUES ('John', 'Doe', 'john@example.com', '12:34:56:78', 'password123')
+      VALUES ('John', 'Doe', 'john@example.com', '12:34:56:78', ${userPassword})
       ON CONFLICT ("email") DO NOTHING
       RETURNING uid
     `;
