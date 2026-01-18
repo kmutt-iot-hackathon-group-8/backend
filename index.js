@@ -634,7 +634,13 @@ app.get("/api/v1/users/:uid", async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { uid: parseInt(uid) },
-      select: { uid: true, fname: true, lname: true, email: true },
+      select: {
+        uid: true,
+        fname: true,
+        lname: true,
+        email: true,
+        cardid: true,
+      },
     });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -943,9 +949,15 @@ app.post("/login", async (req, res) => {
   try {
     const user = await prisma.user.findFirst({
       where: { email },
-      select: { uid: true, fname: true, lname: true, email: true, userpassword: true },
+      select: {
+        uid: true,
+        fname: true,
+        lname: true,
+        email: true,
+        userpassword: true,
+      },
     });
-    
+
     if (!user) {
       return res
         .status(401)

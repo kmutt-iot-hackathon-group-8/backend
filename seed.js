@@ -1,140 +1,155 @@
-import "dotenv/config";
-import { neon } from "@neondatabase/serverless";
-import bcrypt from "bcrypt";
+const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcrypt");
 
-const sql = neon(process.env.DATABASE_URL);
+const prisma = new PrismaClient();
 
-async function seed() {
-  try {
-    console.log("🌱 Seeding database...");
+async function main() {
+  const saltRounds = 10;
 
-    const adminPassword = await bcrypt.hash("admin123", 10);
+  // Clear existing data
+  await prisma.history.deleteMany();
+  await prisma.attendee.deleteMany();
+  await prisma.event.deleteMany();
+  await prisma.user.deleteMany();
 
-    // 1. Create a "System Admin" user to own the events
-    // We use ON CONFLICT to avoid errors if you run this script twice
-    const admin = await sql`
-      INSERT INTO users ("fname", "lname", "email", "cardid", "userpassword")
-      VALUES ('System', 'Admin', 'admin@event.com', 'ADMIN_CARD_001', ${adminPassword})
-      ON CONFLICT ("email") DO UPDATE SET fname = EXCLUDED.fname
-      RETURNING uid
-    `;
+  // Reset sequence to start from 31 for the owner
+  await prisma.$executeRaw`ALTER SEQUENCE users_uid_seq RESTART WITH 31;`;
 
-    const adminId = admin[0].uid;
-    console.log(`✅ Admin user ready (ID: ${adminId})`);
+  // Create owner user with uid 31
+  const owner = await prisma.user.create({
+    data: {
+      fname: "Event",
+      lname: "Owner",
+      email: "event.owner@example.com",
+      cardid: "OWNER001",
+      userpassword: await bcrypt.hash("password123", saltRounds),
+    },
+  });
 
-    // 2. Clear existing data to start fresh
-    await sql`TRUNCATE events, attendees, history RESTART IDENTITY CASCADE`;
+  // Create additional users
+  const user1 = await prisma.user.create({
+    data: {
+      fname: "John",
+      lname: "Doe",
+      email: "john.doe@example.com",
+      cardid: "CARD001",
+      userpassword: await bcrypt.hash("password123", saltRounds),
+    },
+  });
 
-    // 3. Create Mock Events
-    const eventsToCreate = [
-      {
-        name: "IoT Hackathon 2026",
-        start: "2026-02-13 09:00:00",
-        end: "2026-02-15 18:00:00",
-      },
-      {
-        name: "NFC Workshop",
-        start: "2026-03-01 10:00:00",
-        end: "2026-03-01 14:00:00",
-      },
-      {
-        name: "AI Conference 2026",
-        start: "2026-04-10 08:00:00",
-        end: "2026-04-12 17:00:00",
-      },
-    ];
+  const user2 = await prisma.user.create({
+    data: {
+      fname: "Jane",
+      lname: "Smith",
+      email: "jane.smith@example.com",
+      cardid: "CARD002",
+      userpassword: await bcrypt.hash("password123", saltRounds),
+    },
+  });
 
-    for (const event of eventsToCreate) {
-      await sql`
-    INSERT INTO events (
-      eventowner, eventtitle, eventdetail, eventimg, 
-      eventstartdate, eventenddate, eventstarttime, eventendtime, 
-      regisstart, regisend, contact
-    )
-    VALUES (
-      ${adminId}, 
-      ${event.name},
-      ${`This is a detailed description for ${event.name}`},
-      'https://via.placeholder.com/150', 
-      ${event.start.split(" ")[0]}::date, 
-      ${event.end.split(" ")[0]}::date, 
-      ${event.start.split(" ")[1]}::time, 
-      ${event.end.split(" ")[1]}::time, 
-      ${event.start.split(" ")[0]}::date, 
-      ${event.end.split(" ")[0]}::date, 
-      '${process.env.FRONTEND_URL || "http://localhost:5173"}/register'
-    )
-  `;
-    }
+  const user3 = await prisma.user.create({
+    data: {
+      fname: "Alice",
+      lname: "Johnson",
+      email: "alice.johnson@example.com",
+      cardid: "CARD003",
+      userpassword: await bcrypt.hash("password123", saltRounds),
+    },
+  });
 
-    console.log("✅ Mock events created successfully!");
+  // Create events owned by uid 31
+  const event1 = await prisma.event.create({
+    data: {
+      eventowner: owner.uid,
+      eventdetail: "A conference on the latest in technology.",
+      eventimg: "https://picsum.photos/300/200?random=1",
+      eventstartdate: new Date("2026-02-01"),
+      eventenddate: new Date("2026-02-01"),
+      eventstarttime: new Date("2026-02-01T09:00:00"),
+      eventendtime: new Date("2026-02-01T17:00:00"),
+      regisstart: new Date("2026-01-15"),
+      regisend: new Date("2026-01-30"),
+      contact: "contact@techconf.com",
+      eventtitle: "Tech Conference 2026",
+      eventlocation: "Convention Center, City",
+    },
+  });
 
-    const userPassword = await bcrypt.hash("password123", 10);
+  const event2 = await prisma.event.create({
+    data: {
+      eventowner: owner.uid,
+      eventdetail: "An art exhibition showcasing local artists.",
+      eventimg: "https://picsum.photos/300/200?random=2",
+      eventstartdate: new Date("2026-03-15"),
+      eventenddate: new Date("2026-03-16"),
+      eventstarttime: new Date("2026-03-15T10:00:00"),
+      eventendtime: new Date("2026-03-16T18:00:00"),
+      regisstart: new Date("2026-02-01"),
+      regisend: new Date("2026-03-10"),
+      contact: "info@artexpo.com",
+      eventtitle: "Spring Art Exhibition",
+      eventlocation: "Art Gallery, Downtown",
+    },
+  });
 
-    // 4. Create test user
-    const testUser = await sql`
-      INSERT INTO users ("fname", "lname", "email", "cardid", "userpassword")
-      VALUES ('John', 'Doe', 'john@example.com', '12:34:56:78', ${userPassword})
-      ON CONFLICT ("email") DO NOTHING
-      RETURNING uid
-    `;
+  // Create attendees
+  await prisma.attendee.create({
+    data: {
+      eventid: event1.eventid,
+      uid: user1.uid,
+      status: "registered",
+    },
+  });
 
-    if (testUser.length === 0) {
-      // User already exists, get the uid
-      const existing =
-        await sql`SELECT uid FROM users WHERE email = 'john@example.com'`;
-      testUser.push(existing[0]);
-    }
+  await prisma.attendee.create({
+    data: {
+      eventid: event1.eventid,
+      uid: user2.uid,
+      status: "present",
+    },
+  });
 
-    const userId = testUser[0].uid;
+  await prisma.attendee.create({
+    data: {
+      eventid: event2.eventid,
+      uid: user3.uid,
+      status: "registered",
+    },
+  });
 
-    // 5. Register test user for first event as present
-    const firstEvent = await sql`SELECT eventid FROM events LIMIT 1`;
+  await prisma.attendee.create({
+    data: {
+      eventid: event2.eventid,
+      uid: owner.uid,
+      status: "absent",
+    },
+  });
 
-    if (firstEvent.length > 0) {
-      const eventId = firstEvent[0].eventid;
+  // Create history
+  await prisma.history.create({
+    data: {
+      uid: user2.uid,
+      eventid: event1.eventid,
+      scannedat: new Date("2026-02-01T10:00:00"),
+    },
+  });
 
-      await sql`
-        INSERT INTO attendees ("eventid", "uid", "status")
-        VALUES (${eventId}, ${userId}, 'present')
-      `;
+  await prisma.history.create({
+    data: {
+      uid: user3.uid,
+      eventid: event2.eventid,
+      scannedat: new Date("2026-03-15T11:00:00"),
+    },
+  });
 
-      await sql`
-        INSERT INTO history ("uid", "eventid") VALUES (${userId}, ${eventId})
-      `;
-
-      console.log(
-        `✅ Pre-registered John Doe (Card: 12:34:56:78) for Event ID: ${eventId}`,
-      );
-    }
-
-    // 6. Register admin for second event
-    const secondEvent = await sql`SELECT eventid FROM events LIMIT 1 OFFSET 1`;
-
-    if (secondEvent.length > 0) {
-      const eventId = secondEvent[0].eventid;
-
-      await sql`
-        INSERT INTO attendees ("eventid", "uid", "status")
-        VALUES (${eventId}, ${adminId}, 'present')
-      `;
-
-      await sql`
-        INSERT INTO history ("uid", "eventid") VALUES (${adminId}, ${eventId})
-      `;
-
-      console.log(`✅ Pre-registered Admin for Event ID: ${eventId}`);
-    }
-
-    // 7. Show the events so you know which IDs to use
-    const allEvents =
-      await sql`SELECT eventid, eventdetail, eventstartdate FROM events`;
-    console.table(allEvents);
-  } catch (err) {
-    console.error("❌ Seeding failed:", err);
-  } finally {
-    process.exit();
-  }
+  console.log("Database seeded successfully!");
 }
 
-seed();
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
