@@ -9,7 +9,6 @@ const io = require("socket.io")(server, {
   },
 });
 const cors = require("cors");
-const multer = require("multer");
 const { v2: cloudinary } = require("cloudinary");
 const { PrismaClient } = require("@prisma/client");
 
@@ -27,9 +26,6 @@ require("dotenv").config();
 
 // Determine environment and backend URL
 const BASE_URL = process.env.FRONTEND_URL || "http://localhost:5173";
-
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
 
 // Configure Cloudinary
 cloudinary.config({
@@ -52,7 +48,6 @@ io.on("connection", (socket) => {
 });
 
 // Configure Multer for memory storage
-const upload = multer({ storage: multer.memoryStorage() });
 
 // Middleware
 app.use(express.json());
@@ -61,22 +56,43 @@ app.use(express.urlencoded({ extended: true }));
 // Mock Database
 let registeredUsers = [{ cardId: "12:34:16:78", username: "Admin" }];
 const tempCard = "12:34:26:78";
+
+// Track active linking sessions (uid -> socketId or timestamp)
+const pendingLinkingSessions = new Map();
+
 // --- ESP32 ENDPOINTS ---
 
 // 1. ESP32 calls this when a card is tapped
 app.get("/api/v1/scan-card/:cardId", async (req, res) => {
   const { cardId } = req.params;
-  const eventId = req.query.eventid; // maybe should add || "1" for demo purpose
+  const eventId = req.query.eventid;
 
   if (!cardId || cardId.length < 4) {
     return res.status(400).send("INVALID_CARD_ID");
   }
 
-  if (!eventId) {
-    return res.status(400).send("MISSING_EVENT_ID");
-  }
-
   try {
+    // SCENARIO 0: Check if any user is currently in "Linking Mode"
+    if (pendingLinkingSessions.size > 0) {
+      const [uid, sessionData] = Array.from(
+        pendingLinkingSessions.entries(),
+      )[0];
+
+      console.log(
+        `Linking session detected! Associating card ${cardId} with user ${uid}`,
+      );
+
+      await prisma.user.update({
+        where: { uid: parseInt(uid) },
+        data: { cardid: cardId },
+      });
+
+      io.to(`user_${uid}`).emit("card_added", { cardId });
+      pendingLinkingSessions.delete(uid);
+
+      return res.send("LINK_SUCCESSFUL");
+    }
+
     // DB CHECK: Find user by the actual scanned cardId
     const users = await prisma.user.findMany({
       where: { cardid: cardId },
@@ -763,7 +779,7 @@ app.get("/api/v1/users/:uid/attended-events", async (req, res) => {
 
     const formattedEvents = await Promise.all(
       events.map(async (event) => {
-        const attendeeInfo = eventIds.find((e) => e.eventId === event.eventid);
+        const attendeeInfo = eventIds.find((e) => e.eventid === event.eventid);
         const history = await prisma.history.findFirst({
           where: { uid: parseInt(uid), eventId: event.eventid },
           select: { scanned_at: true },
@@ -851,7 +867,14 @@ app.get("/api/v1/users/:uid/created-events", async (req, res) => {
 // Link card to user
 app.post("/api/v1/users/:uid/link-card", async (req, res) => {
   const { uid } = req.params;
-  const { cardId } = req.body;
+  const { cardId, action } = req.body;
+
+  // if action is "start", just mark the user as in linking mode
+  if (action === "start") {
+    pendingLinkingSessions.set(uid, { timestamp: Date.now() });
+    console.log(`User ${uid} is now in linking mode.`);
+    return res.json({ success: true, message: "Linking mode active" });
+  }
 
   if (!cardId) {
     return res
@@ -877,6 +900,7 @@ app.post("/api/v1/users/:uid/link-card", async (req, res) => {
     });
 
     io.to(`user_${uid}`).emit("card_added", { cardId });
+    pendingLinkingSessions.delete(uid);
 
     res.json({ success: true, message: "Card linked successfully" });
   } catch (err) {
